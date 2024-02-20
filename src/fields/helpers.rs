@@ -235,6 +235,28 @@ pub fn mul_by_01<F: RichField + Extendable<D>, const D: usize>(
     result
 }
 
+pub fn mul_by_1<F: RichField + Extendable<D>, const D: usize>(
+    builder: &mut CircuitBuilder<F, D>,
+    fq6_coeffs: &[FqTarget<F, D>],
+    c1: &Fq2Target<F, D>
+) -> Vec<Fq2Target<F, D>> {
+    let fq6_c0 = Fq2Target::new(fq6_coeffs[..2].to_vec());
+    let fq6_c1 = Fq2Target::new(fq6_coeffs[2..4].to_vec());
+    let fq6_c2 = Fq2Target::new(fq6_coeffs[4..6].to_vec());
+
+    let c0 = fq6_c2.mul(builder, c1);
+    let c0 = c0.mul_by_nonresidue(builder);
+    let c1 = fq6_c0.mul(builder, c1);
+    let c2 = fq6_c1.mul(builder, &c1);
+
+    let mut result: Vec<Fq2Target<F, D>> = Vec::new();
+    result.push(c0);
+    result.push(c1);
+    result.push(c2);
+
+    result
+}
+
 pub fn get_naf(mut exp: Vec<u64>) -> Vec<i8> {
     // https://en.wikipedia.org/wiki/Non-adjacent_form
     // NAF for exp:

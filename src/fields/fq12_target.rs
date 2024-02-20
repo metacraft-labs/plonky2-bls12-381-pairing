@@ -23,7 +23,7 @@ use crate::fields::{
     helpers::{from_biguint_to_fq, MyFq12},
 };
 
-use super::{fq2_target::Fq2Target, helpers::mul_by_01};
+use super::{fq2_target::Fq2Target, helpers::{mul_by_01, mul_by_1}};
 
 #[derive(Debug, Clone)]
 pub struct Fq12Target<F: RichField + Extendable<D>, const D: usize> {
@@ -197,8 +197,11 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         c1: &Fq2Target<F, D>,
         c4: &Fq2Target<F, D>,
     ) -> Self {
+        // Vec<[FqTarget<F, D>; 2]> = Fq6Target<F, D>
         let aa = mul_by_01(builder, &self.coeffs[0..6], c0, c1);
+        let bb = mul_by_1(builder, &self.coeffs[6..12], c4);
         let o = c1.add(builder, c4);
+        // let c1 = 
 
         self.clone()
     }
