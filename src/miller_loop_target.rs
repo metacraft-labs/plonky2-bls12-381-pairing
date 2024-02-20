@@ -4,7 +4,10 @@ use plonky2::{
 };
 
 use crate::{
-    curves::g2_curve_target::{G2AffineTarget, G2ProjectiveTarget},
+    curves::{
+        g1_curve_target::G1AffineTarget,
+        g2_curve_target::{G2AffineTarget, G2ProjectiveTarget},
+    },
     fields::{fq12_target::Fq12Target, fq2_target::Fq2Target},
     utils::constants::{BLS_X, BLS_X_IS_NEGATIVE},
 };
@@ -145,9 +148,19 @@ fn _miller_loop<F: RichField + Extendable<D>, const D: usize, M: MillerLoopDrive
 }
 
 fn _ell<F: RichField + Extendable<D>, const D: usize>(
-    _builder: &mut CircuitBuilder<F, D>,
-    _f: Fq12Target<F, D>,
-    _coeffs: &(Fq2Target<F, D>, Fq2Target<F, D>, Fq2Target<F, D>),
-    _p: &G2AffineTarget<F, D>,
-) {
+    builder: &mut CircuitBuilder<F, D>,
+    f: Fq12Target<F, D>,
+    coeffs: &(Fq2Target<F, D>, Fq2Target<F, D>, Fq2Target<F, D>),
+    p: &G1AffineTarget<F, D>,
+) -> Fq12Target<F, D> {
+    let c0 = &coeffs.0;
+    let c1 = &coeffs.1;
+
+    c0.coeffs[0].mul(builder, &p.y);
+    c0.coeffs[1].mul(builder, &p.y);
+
+    c1.coeffs[0].mul(builder, &p.x);
+    c1.coeffs[1].mul(builder, &p.x);
+
+    f
 }

@@ -23,6 +23,8 @@ use crate::fields::{
     helpers::{from_biguint_to_fq, MyFq12},
 };
 
+use super::{fq2_target::Fq2Target, helpers::mul_by_01};
+
 #[derive(Debug, Clone)]
 pub struct Fq12Target<F: RichField + Extendable<D>, const D: usize> {
     pub coeffs: [FqTarget<F, D>; 12],
@@ -186,6 +188,19 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         Self {
             coeffs: out_coeffs.try_into().unwrap(),
         }
+    }
+
+    pub fn mul_by_014(
+        &self,
+        builder: &mut CircuitBuilder<F, D>,
+        c0: &Fq2Target<F, D>,
+        c1: &Fq2Target<F, D>,
+        c4: &Fq2Target<F, D>,
+    ) -> Self {
+        let aa = mul_by_01(builder, &self.coeffs[0..6], c0, c1);
+        let o = c1.add(builder, c4);
+
+        self.clone()
     }
 
     pub fn div(&self, builder: &mut CircuitBuilder<F, D>, other: &Self) -> Self {

@@ -162,6 +162,20 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
         Fq2Target { coeffs: [c0, c1] }
     }
 
+    pub fn mul_by_nonresidue(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        // Multiply a + bu by u + 1, getting
+        // au + a + bu^2 + bu
+        // and because u^2 = -1, we get
+        // (a - b) + (a + b)u
+
+        Fq2Target {
+            coeffs: [
+                self.coeffs[0].sub(builder, &self.coeffs[1]),
+                self.coeffs[0].add(builder, &self.coeffs[1]),
+            ],
+        }
+    }
+
     // check validity
     pub fn mul_w6<const I_0: usize>(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
         let a0 = self.coeffs[0].clone();
