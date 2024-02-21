@@ -1,7 +1,11 @@
+use ark_bls12_381::Fq12;
+use ark_ff::Field;
 use plonky2::{
-    field::extension::Extendable, hash::hash_types::RichField,
-    plonk::circuit_builder::CircuitBuilder,
+    field::extension::Extendable,
+    hash::hash_types::RichField,
+    plonk::{circuit_builder::CircuitBuilder, circuit_data::CircuitConfig},
 };
+use subtle::Choice;
 
 use crate::{
     curves::{
@@ -12,6 +16,12 @@ use crate::{
     utils::constants::{BLS_X, BLS_X_IS_NEGATIVE},
 };
 
+#[derive(Clone, Debug)]
+pub struct G2PreparedTarget<F: RichField + Extendable<D>, const D: usize> {
+    pub infinity: Choice,
+    pub coeffs: Vec<(Fq2Target<F, D>, Fq2Target<F, D>, Fq2Target<F, D>)>,
+}
+
 trait MillerLoopDriver {
     type Output;
 
@@ -20,6 +30,46 @@ trait MillerLoopDriver {
     fn square_output(f: Self::Output) -> Self::Output;
     fn conjugate(f: Self::Output) -> Self::Output;
     fn one() -> Self::Output;
+}
+
+pub fn _multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
+    terms: &[(&G1AffineTarget<F, D>, &G2PreparedTarget<F, D>)],
+) {
+    struct Adder<'a, 'b, 'c, A: RichField + Extendable<B>, const B: usize> {
+        terms: &'c [(&'a G1AffineTarget<A, B>, &'b G2PreparedTarget<A, { B }>)],
+        index: usize,
+    }
+
+    impl<'a, 'b, 'c, A: RichField + Extendable<B>, const B: usize> MillerLoopDriver
+        for Adder<'a, 'b, 'c, A, B>
+    {
+        type Output = Fq12Target<A, B>;
+        fn point_doubling_and_line_evaluation(&mut self, f: Self::Output) -> Self::Output {
+            todo!()
+        }
+
+        fn point_addition_and_line_evaluation(&mut self, f: Self::Output) -> Self::Output {
+            todo!()
+        }
+
+        fn square_output(f: Self::Output) -> Self::Output {
+            f.square()
+        }
+
+        fn conjugate(f: Self::Output) -> Self::Output {
+            let config = CircuitConfig::pairing_config();
+            let mut builder = CircuitBuilder::<A, B>::new(config);
+            f.confugate(&mut builder)
+        }
+
+        fn one() -> Self::Output {
+            let config = CircuitConfig::pairing_config();
+            let mut builder = CircuitBuilder::<A, B>::new(config);
+            Fq12Target::constant(&mut builder, Fq12::ONE)
+        }
+    }
+
+    // let tmp = miller_loop(&mut adder);
 }
 
 // Adaptation of Algorithm 26, https://eprint.iacr.org/2010/354.pdf
@@ -117,7 +167,7 @@ fn _point_addition_and_line_evaluation<F: RichField + Extendable<D>, const D: us
     (t10, t1, t9)
 }
 
-fn _miller_loop<F: RichField + Extendable<D>, const D: usize, M: MillerLoopDriver>(
+fn miller_loop<F: RichField + Extendable<D>, const D: usize, M: MillerLoopDriver>(
     driver: &mut M,
 ) -> M::Output {
     let mut f = M::one();
@@ -162,5 +212,5 @@ fn _ell<F: RichField + Extendable<D>, const D: usize>(
     c1.coeffs[0].mul(builder, &p.x);
     c1.coeffs[1].mul(builder, &p.x);
 
-    f
+    f.mul_by_014(builder, &coeffs.2, &c1, c0)
 }

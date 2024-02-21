@@ -19,11 +19,11 @@ use plonky2_ecdsa::gadgets::{
 };
 
 use crate::fields::{
+    fq2_target::Fq2Target,
+    fq6_target::Fq6Target,
     fq_target::FqTarget,
     helpers::{from_biguint_to_fq, MyFq12},
 };
-
-use super::{fq2_target::Fq2Target, helpers::{mul_by_01, mul_by_1}};
 
 #[derive(Debug, Clone)]
 pub struct Fq12Target<F: RichField + Extendable<D>, const D: usize> {
@@ -197,12 +197,38 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         c1: &Fq2Target<F, D>,
         c4: &Fq2Target<F, D>,
     ) -> Self {
-        // Vec<[FqTarget<F, D>; 2]> = Fq6Target<F, D>
-        let aa = mul_by_01(builder, &self.coeffs[0..6], c0, c1);
-        let bb = mul_by_1(builder, &self.coeffs[6..12], c4);
+        let fq6_from_fq12_c0 = Fq6Target::new(self.coeffs[0..6].to_vec());
+        let fq6_from_fq12_c1 = Fq6Target::new(self.coeffs[6..12].to_vec());
+        let temp_fq6_from_fq12_c0 = fq6_from_fq12_c0.clone();
+        let temp_fq6_from_fq12_c1 = fq6_from_fq12_c1.clone();
+        let aa = fq6_from_fq12_c0.mul_by_01(builder, c0, c1);
+        let bb = fq6_from_fq12_c1.mul_by_1(builder, c4);
         let o = c1.add(builder, c4);
-        // let c1 = 
+        let c1 = temp_fq6_from_fq12_c1.add(builder, &temp_fq6_from_fq12_c0);
+        let c1 = c1.mul_by_01(builder, c0, &o);
+        let c1 = c1.sub(builder, &aa);
+        let c1 = c1.sub(builder, &bb);
+        let c0 = bb;
+        let c0 = c0.mul_by_nonresidue(builder);
+        let c0 = c0.add(builder, &aa);
 
+        Self::new(vec![
+            c0.coeffs[0].clone(),
+            c0.coeffs[1].clone(),
+            c0.coeffs[2].clone(),
+            c0.coeffs[3].clone(),
+            c0.coeffs[4].clone(),
+            c0.coeffs[5].clone(),
+            c1.coeffs[6].clone(),
+            c1.coeffs[7].clone(),
+            c1.coeffs[8].clone(),
+            c1.coeffs[9].clone(),
+            c1.coeffs[10].clone(),
+            c1.coeffs[11].clone(),
+        ])
+    }
+
+    pub fn square(&self) -> Self {
         self.clone()
     }
 

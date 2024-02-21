@@ -4,12 +4,6 @@ use ark_bls12_381::{Fq, Fq12, Fq2, Fq6};
 use ark_ff::{BigInt, PrimeField};
 use ark_std::Zero;
 use num_bigint::BigUint;
-use plonky2::{
-    field::extension::Extendable, hash::hash_types::RichField,
-    plonk::circuit_builder::CircuitBuilder,
-};
-
-use super::{fq2_target::Fq2Target, fq_target::FqTarget};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MyFq12 {
@@ -198,63 +192,6 @@ pub fn pow_fq(a: Fq, exp: Vec<u64>) -> Fq {
         }
     }
     res
-}
-
-pub fn mul_by_01<F: RichField + Extendable<D>, const D: usize>(
-    builder: &mut CircuitBuilder<F, D>,
-    fq6_coeffs: &[FqTarget<F, D>],
-    c0: &Fq2Target<F, D>,
-    c1: &Fq2Target<F, D>,
-) -> Vec<[FqTarget<F, D>; 2]> {
-    // [FqTarget<F, D>; 6]
-    let fq6_c0 = Fq2Target::new(fq6_coeffs[..2].to_vec());
-    let fq6_c1 = Fq2Target::new(fq6_coeffs[2..4].to_vec());
-    let fq6_c2 = Fq2Target::new(fq6_coeffs[4..6].to_vec());
-
-    let a_a = fq6_c0.mul(builder, c0);
-    let b_b = fq6_c1.mul(builder, c1);
-
-    let t1 = fq6_c2.mul(builder, c1);
-    let t1 = t1.mul_by_nonresidue(builder);
-    let t1 = t1.add(builder, &a_a);
-
-    let c0_add_c1 = c0.add(builder, c1);
-    let fq6_c0_add_fq6_c1 = fq6_c0.add(builder, &fq6_c1);
-    let t2 = c0_add_c1.mul(builder, &fq6_c0_add_fq6_c1);
-    let t2 = t2.sub(builder, &a_a);
-    let t2 = t2.sub(builder, &b_b);
-
-    let t3 = fq6_c2.mul(builder, c0);
-    let t3 = t3.add(builder, &b_b);
-
-    let mut result: Vec<[FqTarget<F, D>; 2]> = Vec::new();
-    result.push(t1.coeffs.clone());
-    result.push(t2.coeffs);
-    result.push(t3.coeffs);
-
-    result
-}
-
-pub fn mul_by_1<F: RichField + Extendable<D>, const D: usize>(
-    builder: &mut CircuitBuilder<F, D>,
-    fq6_coeffs: &[FqTarget<F, D>],
-    c1: &Fq2Target<F, D>
-) -> Vec<Fq2Target<F, D>> {
-    let fq6_c0 = Fq2Target::new(fq6_coeffs[..2].to_vec());
-    let fq6_c1 = Fq2Target::new(fq6_coeffs[2..4].to_vec());
-    let fq6_c2 = Fq2Target::new(fq6_coeffs[4..6].to_vec());
-
-    let c0 = fq6_c2.mul(builder, c1);
-    let c0 = c0.mul_by_nonresidue(builder);
-    let c1 = fq6_c0.mul(builder, c1);
-    let c2 = fq6_c1.mul(builder, &c1);
-
-    let mut result: Vec<Fq2Target<F, D>> = Vec::new();
-    result.push(c0);
-    result.push(c1);
-    result.push(c2);
-
-    result
 }
 
 pub fn get_naf(mut exp: Vec<u64>) -> Vec<i8> {

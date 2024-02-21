@@ -168,7 +168,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
         // and because u^2 = -1, we get
         // (a - b) + (a + b)u
 
-        Fq2Target {
+        Self {
             coeffs: [
                 self.coeffs[0].sub(builder, &self.coeffs[1]),
                 self.coeffs[0].add(builder, &self.coeffs[1]),

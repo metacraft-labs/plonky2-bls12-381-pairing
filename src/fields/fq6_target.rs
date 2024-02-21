@@ -1,24 +1,11 @@
-use ark_bls12_381::{Fq, Fq6};
-use ark_ff::Field;
 use itertools::Itertools;
-use num_bigint::BigUint;
 use plonky2::{
-    field::extension::Extendable,
-    hash::hash_types::RichField,
-    iop::{
-        generator::{GeneratedValues, SimpleGenerator},
-        target::{BoolTarget, Target},
-        witness::{PartitionWitness, WitnessWrite},
-    },
+    field::extension::Extendable, hash::hash_types::RichField, iop::target::BoolTarget,
     plonk::circuit_builder::CircuitBuilder,
-    util::serialization::{Buffer, IoError},
 };
-use plonky2_ecdsa::gadgets::{
-    biguint::{GeneratedValuesBigUint, WitnessBigUint},
-    nonnative::CircuitBuilderNonNative,
-};
+use plonky2_ecdsa::gadgets::nonnative::CircuitBuilderNonNative;
 
-use super::{fq2_target::Fq2Target, fq_target::FqTarget, helpers::{mul_by_01, mul_by_1}};
+use super::{fq2_target::Fq2Target, fq_target::FqTarget};
 
 #[derive(Debug, Clone)]
 pub struct Fq6Target<F: RichField + Extendable<D>, const D: usize> {
@@ -123,76 +110,138 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         Fq6Target { coeffs }
     }
 
+    // Using https://eprint.iacr.org/2022/367.pdf#section.4 - should be reviewed again!!!
     pub fn mul(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> Self {
-        let a = self;
-        let b = rhs;
-        let mut a0b0_coeffs: Vec<FqTarget<F, D>> = Vec::with_capacity(11);
-        let mut a0b1_coeffs: Vec<FqTarget<F, D>> = Vec::with_capacity(11);
-        let mut a1b0_coeffs: Vec<FqTarget<F, D>> = Vec::with_capacity(11);
-        let mut a1b1_coeffs: Vec<FqTarget<F, D>> = Vec::with_capacity(11);
-        for i in 0..6 {
-            for j in 0..6 {
-                let coeff00 = a.coeffs[i].mul(builder, &b.coeffs[j]);
-                let coeff01 = a.coeffs[i].mul(builder, &b.coeffs[j + 6]);
-                let coeff10 = a.coeffs[i + 6].mul(builder, &b.coeffs[j]);
-                let coeff11 = a.coeffs[i + 6].mul(builder, &b.coeffs[j + 6]);
-                if i + j < a0b0_coeffs.len() {
-                    a0b0_coeffs[i + j] = a0b0_coeffs[i + j].add(builder, &coeff00);
-                    a0b1_coeffs[i + j] = a0b1_coeffs[i + j].add(builder, &coeff01);
-                    a1b0_coeffs[i + j] = a1b0_coeffs[i + j].add(builder, &coeff10);
-                    a1b1_coeffs[i + j] = a1b1_coeffs[i + j].add(builder, &coeff11);
-                } else {
-                    a0b0_coeffs.push(coeff00);
-                    a0b1_coeffs.push(coeff01);
-                    a1b0_coeffs.push(coeff10);
-                    a1b1_coeffs.push(coeff11);
-                }
-            }
-        }
+        let a_c0 = Fq2Target::new(self.coeffs[..2].to_vec());
+        let a_c1 = Fq2Target::new(self.coeffs[2..4].to_vec());
+        let a_c2 = Fq2Target::new(self.coeffs[4..6].to_vec());
 
-        let mut a0b0_minus_a1b1: Vec<FqTarget<F, D>> = Vec::with_capacity(11);
-        let mut a0b1_plus_a1b0: Vec<FqTarget<F, D>> = Vec::with_capacity(11);
-        for i in 0..11 {
-            let a0b0_minus_a1b1_entry = a0b0_coeffs[i].sub(builder, &a1b1_coeffs[i]);
-            let a0b1_plus_a1b0_entry = a0b1_coeffs[i].add(builder, &a1b0_coeffs[i]);
-            a0b0_minus_a1b1.push(a0b0_minus_a1b1_entry);
-            a0b1_plus_a1b0.push(a0b1_plus_a1b0_entry);
-        }
+        let b_c0 = Fq2Target::new(rhs.coeffs[..2].to_vec());
+        let b_c1 = Fq2Target::new(rhs.coeffs[2..4].to_vec());
+        let b_c2 = Fq2Target::new(rhs.coeffs[4..6].to_vec());
 
-        let const_one = FqTarget::constant(builder, Fq::from(1));
-        let mut out_coeffs: Vec<FqTarget<F, D>> = Vec::with_capacity(12);
-        for i in 0..6 {
-            if i < 5 {
-                // let coeff: Fq = a0b0_minus_a1b1[i] + Fq::from(1) * a0b0_minus_a1b1[i + 6]
-                //     - a0b1_plus_a1b0[i + 6];
-                let term0 = a0b0_minus_a1b1[i].clone();
-                let term1 = a0b0_minus_a1b1[i + 6].mul(builder, &const_one);
-                let term2 = a0b1_plus_a1b0[i + 6].neg(builder);
-                let term0_plus_term1 = term0.add(builder, &term1);
-                let coeff = term0_plus_term1.add(builder, &term2);
-                out_coeffs.push(coeff);
-            } else {
-                out_coeffs.push(a0b0_minus_a1b1[i].clone());
-            }
-        }
-        for i in 0..6 {
-            if i < 5 {
-                // let coeff: Fq = a0b1_plus_a1b0[i]
-                //     + a0b0_minus_a1b1[i + 6]
-                //     + Fq::from(1) * a0b1_plus_a1b0[i + 6];
-                let term0 = a0b1_plus_a1b0[i].clone();
-                let term1 = a0b0_minus_a1b1[i + 6].clone();
-                let term2 = a0b1_plus_a1b0[i + 6].mul(builder, &const_one);
-                let term0_plus_term1 = term0.add(builder, &term1);
-                let coeff = term0_plus_term1.add(builder, &term2);
-                out_coeffs.push(coeff);
-            } else {
-                out_coeffs.push(a0b1_plus_a1b0[i].clone());
-            }
-        }
-        Self {
-            coeffs: out_coeffs.try_into().unwrap(),
-        }
+        let b10_p_b11 = b_c1.coeffs[0].add(builder, &b_c1.coeffs[1]);
+        let b10_m_b11 = b_c1.coeffs[0].sub(builder, &b_c1.coeffs[1]);
+        let b20_p_b21 = b_c2.coeffs[0].add(builder, &b_c2.coeffs[1]);
+        let b20_m_b21 = b_c2.coeffs[0].sub(builder, &b_c2.coeffs[1]);
+
+        self.clone()
+    }
+
+    // pub fn mul(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> Self {
+    //     let a0 = self.coeffs[0].clone();
+    //     let a1 = self.coeffs[1].clone();
+
+    //     let b0 = rhs.coeffs[0].clone();
+    //     let b1 = rhs.coeffs[1].clone();
+
+    //     let a0_b0 = a0.mul(builder, &b0);
+    //     let a1_b1 = a1.mul(builder, &b1);
+
+    //     let c0 = a0_b0.sub(builder, &a1_b1);
+
+    //     let a0_b1 = a0.mul(builder, &b1);
+    //     let a1_b0 = a1.mul(builder, &b0);
+
+    //     let c1 = a0_b1.add(builder, &a1_b0);
+
+    //     Fq2Target { coeffs: [c0, c1] }
+
+    //     // Fp2 {
+    //     //     c0: Fp::sum_of_products([self.c0, -self.c1], [rhs.c0, rhs.c1]),
+    //     //     c1: Fp::sum_of_products([self.c0, self.c1], [rhs.c1, rhs.c0]),
+    //     // }
+    // }
+
+    pub fn mul_by_01(
+        self,
+        builder: &mut CircuitBuilder<F, D>,
+        c0: &Fq2Target<F, D>,
+        c1: &Fq2Target<F, D>,
+    ) -> Self {
+        let fq6_c0 = Fq2Target::new(self.coeffs[..2].to_vec());
+        let fq6_c1 = Fq2Target::new(self.coeffs[2..4].to_vec());
+        let fq6_c2 = Fq2Target::new(self.coeffs[4..6].to_vec());
+
+        let a_a = fq6_c0.mul(builder, c0);
+        let b_b = fq6_c1.mul(builder, c1);
+
+        let t1 = fq6_c2.mul(builder, c1);
+        let t1 = t1.mul_by_nonresidue(builder);
+        let t1 = t1.add(builder, &a_a);
+
+        let c0_add_c1 = c0.add(builder, c1);
+        let fq6_c0_add_fq6_c1 = fq6_c0.add(builder, &fq6_c1);
+        let t2 = c0_add_c1.mul(builder, &fq6_c0_add_fq6_c1);
+        let t2 = t2.sub(builder, &a_a);
+        let t2 = t2.sub(builder, &b_b);
+
+        let t3 = fq6_c2.mul(builder, c0);
+        let t3 = t3.add(builder, &b_b);
+
+        Self::new(vec![
+            t1.coeffs[0].clone(),
+            t1.coeffs[1].clone(),
+            t2.coeffs[0].clone(),
+            t2.coeffs[1].clone(),
+            t3.coeffs[0].clone(),
+            t3.coeffs[1].clone(),
+        ])
+    }
+
+    pub fn mul_by_1(self, builder: &mut CircuitBuilder<F, D>, c1: &Fq2Target<F, D>) -> Self {
+        let fq6_c0 = Fq2Target::new(self.coeffs[..2].to_vec());
+        let fq6_c1 = Fq2Target::new(self.coeffs[2..4].to_vec());
+        let fq6_c2 = Fq2Target::new(self.coeffs[4..6].to_vec());
+
+        let c0 = fq6_c2.mul(builder, c1);
+        let c0 = c0.mul_by_nonresidue(builder);
+        let c1 = fq6_c0.mul(builder, c1);
+        let c2 = fq6_c1.mul(builder, &c1);
+
+        Self::new(vec![
+            c0.coeffs[0].clone(),
+            c0.coeffs[1].clone(),
+            c1.coeffs[0].clone(),
+            c1.coeffs[1].clone(),
+            c2.coeffs[0].clone(),
+            c2.coeffs[1].clone(),
+        ])
+    }
+
+    /// Multiply by quadratic nonresidue v.
+    pub fn mul_by_nonresidue(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        // Given a + bv + cv^2, this produces
+        //     av + bv^2 + cv^3
+        // but because v^3 = u + 1, we have
+        //     c(u + 1) + av + v^2
+
+        let fq6_c0 = Fq2Target::new(self.coeffs[..2].to_vec());
+        let fq6_c1 = Fq2Target::new(self.coeffs[2..4].to_vec());
+        let fq6_c2 = Fq2Target::new(self.coeffs[4..6].to_vec());
+
+        let c0 = fq6_c2.mul_by_nonresidue(builder);
+        let c1 = fq6_c0;
+        let c2 = fq6_c1;
+
+        Self::new(vec![
+            c0.coeffs[0].clone(),
+            c0.coeffs[1].clone(),
+            c1.coeffs[0].clone(),
+            c1.coeffs[1].clone(),
+            c2.coeffs[0].clone(),
+            c2.coeffs[1].clone(),
+        ])
+    }
+
+    pub fn conditional_mul(
+        &self,
+        builder: &mut CircuitBuilder<F, D>,
+        x: &Self,
+        flag: &BoolTarget,
+    ) -> Self {
+        let muled = self.mul(builder, x);
+        Self::select(builder, &muled, &self, flag)
     }
 
     // pub fn div(&self, builder: &mut CircuitBuilder<F, D>, other: &Self) -> Self {
@@ -222,14 +271,4 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
     //     coeffs[11] = coeffs[11].neg(builder);
     //     Self { coeffs }
     // }
-
-    pub fn conditional_mul(
-        &self,
-        builder: &mut CircuitBuilder<F, D>,
-        x: &Self,
-        flag: &BoolTarget,
-    ) -> Self {
-        let muled = self.mul(builder, x);
-        Self::select(builder, &muled, &self, flag)
-    }
 }
