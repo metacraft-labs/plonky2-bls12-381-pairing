@@ -3,9 +3,9 @@ use ark_ff::Field;
 use plonky2::{
     field::extension::Extendable,
     hash::hash_types::RichField,
+    iop::target::BoolTarget,
     plonk::{circuit_builder::CircuitBuilder, circuit_data::CircuitConfig},
 };
-use subtle::Choice;
 
 use crate::{
     curves::{
@@ -17,8 +17,11 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
+pub struct MillerLoopResult<F: RichField + Extendable<D>, const D: usize>(pub Fq12Target<F, D>);
+
+#[derive(Clone, Debug)]
 pub struct G2PreparedTarget<F: RichField + Extendable<D>, const D: usize> {
-    pub infinity: Choice,
+    pub infinity: BoolTarget,
     pub coeffs: Vec<(Fq2Target<F, D>, Fq2Target<F, D>, Fq2Target<F, D>)>,
 }
 
@@ -32,9 +35,9 @@ trait MillerLoopDriver {
     fn one() -> Self::Output;
 }
 
-pub fn _multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
+pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
     terms: &[(&G1AffineTarget<F, D>, &G2PreparedTarget<F, D>)],
-) {
+) -> MillerLoopResult<F, D> {
     struct Adder<'a, 'b, 'c, A: RichField + Extendable<B>, const B: usize> {
         terms: &'c [(&'a G1AffineTarget<A, B>, &'b G2PreparedTarget<A, { B }>)],
         index: usize,
@@ -44,16 +47,36 @@ pub fn _multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
         for Adder<'a, 'b, 'c, A, B>
     {
         type Output = Fq12Target<A, B>;
-        fn point_doubling_and_line_evaluation(&mut self, f: Self::Output) -> Self::Output {
-            todo!()
+        fn point_doubling_and_line_evaluation(&mut self, mut f: Self::Output) -> Self::Output {
+            let config = CircuitConfig::pairing_config();
+            let mut builder = CircuitBuilder::<A, B>::new(config);
+            let index = self.index;
+            for term in self.terms {
+                let either_identity = builder.or(term.0.is_identity(), term.1.infinity);
+
+                let new_f = ell(&mut builder, f.clone(), &term.1.coeffs[index], term.0);
+                f = Fq12Target::select(&mut builder, &new_f, &f, &either_identity);
+            }
+            f
         }
 
-        fn point_addition_and_line_evaluation(&mut self, f: Self::Output) -> Self::Output {
-            todo!()
+        fn point_addition_and_line_evaluation(&mut self, mut f: Self::Output) -> Self::Output {
+            let config = CircuitConfig::pairing_config();
+            let mut builder = CircuitBuilder::<A, B>::new(config);
+            let index = self.index;
+            for term in self.terms {
+                let either_identity = builder.or(term.0.is_identity(), term.1.infinity);
+
+                let new_f = ell(&mut builder, f.clone(), &term.1.coeffs[index], term.0);
+                f = Fq12Target::select(&mut builder, &new_f, &f, &either_identity);
+            }
+            f
         }
 
         fn square_output(f: Self::Output) -> Self::Output {
-            f.square()
+            let config = CircuitConfig::pairing_config();
+            let mut builder = CircuitBuilder::<A, B>::new(config);
+            f.square(&mut builder)
         }
 
         fn conjugate(f: Self::Output) -> Self::Output {
@@ -69,7 +92,11 @@ pub fn _multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
         }
     }
 
-    // let tmp = miller_loop(&mut adder);
+    let mut adder = Adder { terms, index: 0 };
+
+    let tmp = miller_loop::<F, D, _>(&mut adder);
+
+    MillerLoopResult(tmp)
 }
 
 // Adaptation of Algorithm 26, https://eprint.iacr.org/2010/354.pdf
@@ -197,7 +224,7 @@ fn miller_loop<F: RichField + Extendable<D>, const D: usize, M: MillerLoopDriver
     f
 }
 
-fn _ell<F: RichField + Extendable<D>, const D: usize>(
+fn ell<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     f: Fq12Target<F, D>,
     coeffs: &(Fq2Target<F, D>, Fq2Target<F, D>, Fq2Target<F, D>),
@@ -213,4 +240,35 @@ fn _ell<F: RichField + Extendable<D>, const D: usize>(
     c1.coeffs[1].mul(builder, &p.x);
 
     f.mul_by_014(builder, &coeffs.2, &c1, c0)
+}
+
+mod tests {
+    use ark_bls12_381::Fq12;
+    use ark_ff::Field;
+    use plonky2::{
+        field::{extension::Extendable, goldilocks_field::GoldilocksField},
+        hash::hash_types::RichField,
+        plonk::{
+            circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
+            config::PoseidonGoldilocksConfig,
+        },
+    };
+
+    use crate::{fields::fq12_target::Fq12Target, miller_loop_target::multi_miller_loop};
+
+    type F = GoldilocksField;
+    type C = PoseidonGoldilocksConfig;
+    const D: usize = 2;
+
+    #[test]
+    fn miller_loop_result() {
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let one = Fq12Target::constant(&mut builder, Fq12::ONE);
+
+        // assert_eq!(
+        //     multi_miller_loop(&[(&G1Affine::identity(), &G2Affine::generator().into())]).0,
+        //     Fp12::one()
+        // );
+    }
 }

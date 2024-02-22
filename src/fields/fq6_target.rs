@@ -54,25 +54,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
     }
 
     // pub fn constant(builder: &mut CircuitBuilder<F, D>, c: Fq6) -> Self {
-    //     let coeffs = [c.c0, c.c1]
-    //         .iter()
-    //         .map(|x| FqTarget::constant(builder, x.clone()))
-    //         .collect_vec()
-    //         .try_into()
-    //         .unwrap();
-    //     Self { coeffs }
-    // }
-
-    // pub fn constant(builder: &mut CircuitBuilder<F, D>, c: Fq6) -> Self {
-    //     let c: MyFq12 = c.into();
-    //     let coeffs = c
-    //         .coeffs
-    //         .iter()
-    //         .map(|x| FqTarget::constant(builder, x.clone()))
-    //         .collect_vec()
-    //         .try_into()
-    //         .unwrap();
-    //     Self { coeffs }
     // }
 
     pub fn add(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> Self {
@@ -110,48 +91,60 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         Fq6Target { coeffs }
     }
 
-    // Using https://eprint.iacr.org/2022/367.pdf#section.4 - should be reviewed again!!!
     pub fn mul(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> Self {
-        let a_c0 = Fq2Target::new(self.coeffs[..2].to_vec());
-        let a_c1 = Fq2Target::new(self.coeffs[2..4].to_vec());
-        let a_c2 = Fq2Target::new(self.coeffs[4..6].to_vec());
+        let fq6_self_c0 = Fq2Target::new(self.coeffs[..2].to_vec());
+        let fq6_self_c1 = Fq2Target::new(self.coeffs[2..4].to_vec());
+        let fq6_self_c2 = Fq2Target::new(self.coeffs[4..6].to_vec());
 
-        let b_c0 = Fq2Target::new(rhs.coeffs[..2].to_vec());
-        let b_c1 = Fq2Target::new(rhs.coeffs[2..4].to_vec());
-        let b_c2 = Fq2Target::new(rhs.coeffs[4..6].to_vec());
+        let fq6_rhs_c0 = Fq2Target::new(rhs.coeffs[..2].to_vec());
+        let fq6_rhs_c1 = Fq2Target::new(rhs.coeffs[2..4].to_vec());
+        let fq6_rhs_c2 = Fq2Target::new(rhs.coeffs[4..6].to_vec());
 
-        let b10_p_b11 = b_c1.coeffs[0].add(builder, &b_c1.coeffs[1]);
-        let b10_m_b11 = b_c1.coeffs[0].sub(builder, &b_c1.coeffs[1]);
-        let b20_p_b21 = b_c2.coeffs[0].add(builder, &b_c2.coeffs[1]);
-        let b20_m_b21 = b_c2.coeffs[0].sub(builder, &b_c2.coeffs[1]);
+        let a_a = fq6_self_c0.mul(builder, &fq6_rhs_c0);
+        let b_b = fq6_self_c1.mul(builder, &fq6_rhs_c1);
+        let c_c = fq6_self_c2.mul(builder, &fq6_rhs_c2);
 
-        self.clone()
+        // Construct t1
+        let t1 = fq6_rhs_c1.clone();
+        let t1 = t1.add(builder, &fq6_rhs_c2);
+
+        let tmp = fq6_self_c1.add(builder, &fq6_self_c2);
+        let t1 = t1.mul(builder, &tmp);
+        let t1 = t1.sub(builder, &b_b);
+        let t1 = t1.sub(builder, &c_c);
+        let t1 = t1.mul_by_nonresidue(builder);
+        let t1 = t1.add(builder, &a_a);
+
+        // Construct t3
+        let t3 = fq6_rhs_c0.clone();
+        let t3 = t3.add(builder, &fq6_rhs_c2);
+
+        let tmp = fq6_self_c0.add(builder, &fq6_self_c2);
+        let t3 = t3.mul(builder, &tmp);
+        let t3 = t3.sub(builder, &a_a);
+        let t3 = t3.add(builder, &b_b);
+        let t3 = t3.sub(builder, &c_c);
+
+        // Construct t2
+        let t2 = fq6_rhs_c0;
+        let t2 = t2.add(builder, &fq6_rhs_c1);
+
+        let tmp = fq6_self_c0.add(builder, &fq6_self_c1);
+        let t2 = t2.mul(builder, &tmp);
+        let t2 = t2.sub(builder, &a_a);
+        let t2 = t2.sub(builder, &b_b);
+        let c_c_mul_by_nonres = c_c.mul_by_nonresidue(builder);
+        let t2 = t2.add(builder, &c_c_mul_by_nonres);
+
+        Self::new(vec![
+            t1.coeffs[0].clone(),
+            t1.coeffs[1].clone(),
+            t2.coeffs[0].clone(),
+            t2.coeffs[1].clone(),
+            t3.coeffs[0].clone(),
+            t3.coeffs[1].clone(),
+        ])
     }
-
-    // pub fn mul(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> Self {
-    //     let a0 = self.coeffs[0].clone();
-    //     let a1 = self.coeffs[1].clone();
-
-    //     let b0 = rhs.coeffs[0].clone();
-    //     let b1 = rhs.coeffs[1].clone();
-
-    //     let a0_b0 = a0.mul(builder, &b0);
-    //     let a1_b1 = a1.mul(builder, &b1);
-
-    //     let c0 = a0_b0.sub(builder, &a1_b1);
-
-    //     let a0_b1 = a0.mul(builder, &b1);
-    //     let a1_b0 = a1.mul(builder, &b0);
-
-    //     let c1 = a0_b1.add(builder, &a1_b0);
-
-    //     Fq2Target { coeffs: [c0, c1] }
-
-    //     // Fp2 {
-    //     //     c0: Fp::sum_of_products([self.c0, -self.c1], [rhs.c0, rhs.c1]),
-    //     //     c1: Fp::sum_of_products([self.c0, self.c1], [rhs.c1, rhs.c0]),
-    //     // }
-    // }
 
     pub fn mul_by_01(
         self,
@@ -245,30 +238,11 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
     }
 
     // pub fn div(&self, builder: &mut CircuitBuilder<F, D>, other: &Self) -> Self {
-    //     let inv = other.inv(builder);
-    //     self.mul(builder, &inv)
     // }
 
     // pub fn inv(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
-    //     let inv = Self::empty(builder);
-    //     builder.add_simple_generator(Fq12InverseGenerator::<F, D> {
-    //         x: self.clone(),
-    //         inv: inv.clone(),
-    //     });
-    //     let one = Self::constant(builder, Fq12::ONE);
-    //     let x_mul_inv = self.mul(builder, &inv);
-    //     Self::connect(builder, &x_mul_inv, &one);
-    //     inv
     // }
 
     // pub fn confugate(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
-    //     let mut coeffs = self.coeffs.clone();
-    //     coeffs[1] = coeffs[1].neg(builder);
-    //     coeffs[3] = coeffs[3].neg(builder);
-    //     coeffs[5] = coeffs[5].neg(builder);
-    //     coeffs[7] = coeffs[7].neg(builder);
-    //     coeffs[9] = coeffs[9].neg(builder);
-    //     coeffs[11] = coeffs[11].neg(builder);
-    //     Self { coeffs }
     // }
 }

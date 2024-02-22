@@ -228,8 +228,35 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         ])
     }
 
-    pub fn square(&self) -> Self {
-        self.clone()
+    pub fn square(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let fq6_c0 = Fq6Target::new(self.coeffs[..6].to_vec());
+        let fq6_c1 = Fq6Target::new(self.coeffs[6..12].to_vec());
+
+        let ab = fq6_c0.mul(builder, &fq6_c1);
+        let c0c1 = fq6_c0.add(builder, &fq6_c1);
+        let c0 = fq6_c1.mul_by_nonresidue(builder);
+        let c0 = c0.add(builder, &fq6_c0);
+        let c0 = c0.mul(builder, &c0c1);
+        let c0 = c0.sub(builder, &ab);
+
+        let c1 = ab.add(builder, &ab);
+        let tmp = ab.mul_by_nonresidue(builder);
+        let c0 = c0.sub(builder, &tmp);
+
+        Self::new(vec![
+            c0.coeffs[0].clone(),
+            c0.coeffs[1].clone(),
+            c0.coeffs[2].clone(),
+            c0.coeffs[3].clone(),
+            c0.coeffs[4].clone(),
+            c0.coeffs[5].clone(),
+            c1.coeffs[6].clone(),
+            c1.coeffs[7].clone(),
+            c1.coeffs[8].clone(),
+            c1.coeffs[9].clone(),
+            c1.coeffs[10].clone(),
+            c1.coeffs[11].clone(),
+        ])
     }
 
     pub fn div(&self, builder: &mut CircuitBuilder<F, D>, other: &Self) -> Self {
