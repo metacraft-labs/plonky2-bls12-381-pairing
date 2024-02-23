@@ -66,7 +66,7 @@ impl<F: RichField + Extendable<D>, const D: usize> From<G2AffineTarget<F, D>>
 
         miller_loop::<F, D, _>(&mut adder);
 
-        // assert_eq!(adder.coeffs.len(), 68);
+        assert_eq!(adder.coeffs.len(), 68);
 
         G2PreparedTarget {
             infinity: is_identity,
@@ -157,10 +157,10 @@ fn point_doubling_and_line_evaluation<F: RichField + Extendable<D>, const D: usi
     let tmp0 = r.x.square(builder);
     let tmp1 = r.y.square(builder);
     let tmp2 = tmp1.square(builder);
-    let tmp1_rx = tmp1.add(builder, &r.x);
-    let tmp1_rx_sq = tmp1_rx.square(builder);
-    let tmp0_min_tmp2 = tmp0.sub(builder, &tmp2);
-    let tmp3 = tmp1_rx_sq.sub(builder, &tmp0_min_tmp2);
+    let tmp3 = tmp1.add(builder, &r.x);
+    let tmp3 = tmp3.square(builder);
+    let tmp3 = tmp3.sub(builder, &tmp0);
+    let tmp3 = tmp3.sub(builder, &tmp2);
     let tmp3 = tmp3.add(builder, &tmp3);
     let tmp0_double = tmp0.add(builder, &tmp0);
     let tmp4 = tmp0.add(builder, &tmp0_double);
@@ -289,20 +289,17 @@ fn ell<F: RichField + Extendable<D>, const D: usize>(
     c1.coeffs[0].mul(builder, &p.x);
     c1.coeffs[1].mul(builder, &p.x);
 
-    f.mul_by_014(builder, &coeffs.2, &c1, c0)
+    f.mul_by_014(builder, &coeffs.2, &c1, &c0)
 }
 
+#[cfg(test)]
 mod tests {
     use ark_bls12_381::Fq12;
-    use ark_ff::{Field, Fp12};
+    use ark_ff::Field;
     use num::One;
     use plonky2::{
-        field::{extension::Extendable, goldilocks_field::GoldilocksField},
-        hash::hash_types::RichField,
-        plonk::{
-            circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
-            config::PoseidonGoldilocksConfig,
-        },
+        field::goldilocks_field::GoldilocksField,
+        plonk::{circuit_builder::CircuitBuilder, circuit_data::CircuitConfig},
     };
 
     use crate::{
@@ -311,7 +308,6 @@ mod tests {
         miller_loop_target::multi_miller_loop,
     };
     type F = GoldilocksField;
-    type C = PoseidonGoldilocksConfig;
     const D: usize = 2;
 
     #[test]
@@ -321,22 +317,17 @@ mod tests {
         let one = Fq12Target::constant(&mut builder, Fq12::ONE);
         let test_fq12_one = Fq12Target::constant(&mut builder, Fq12::one());
         let result_mml = multi_miller_loop(&[(
-            &G1AffineTarget::<F, D>::generator(),
-            &G2AffineTarget::<F, D>::identity().into(),
+            &G1AffineTarget::<F, D>::identity(),
+            &G2AffineTarget::<F, D>::generator().into(),
         )])
         .0;
 
         println!("result_mml is: {:?}", result_mml);
-        assert!(false);
-        // println!("result_mml is: {:?}", result_mml);
 
-        // assert_eq!(
-        //     multi_miller_loop(&[(
-        //         &G1AffineTarget::identity(),
-        //         &G2AffineTarget::generator().into()
-        //     )])
-        //     .0,
-        //     Fp12::one()
+        // println!(
+        //     "G2AffineTarget::<F, D>::generator() is: {:?}",
+        //     G2AffineTarget::<F, D>::generator()
         // );
+        assert!(false);
     }
 }

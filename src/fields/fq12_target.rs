@@ -212,32 +212,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         let c0 = c0.mul_by_nonresidue(builder);
         let c0 = c0.add(builder, &aa);
 
-        // println!("c0: {:?}", c0.coeffs[0]);
-        // println!("-------------------------------");
-        // println!("c1: {:?}", c0.coeffs[1]);
-        // println!("-------------------------------");
-        // println!("c2: {:?}", c0.coeffs[2]);
-        // println!("-------------------------------");
-        // println!("c3: {:?}", c0.coeffs[3]);
-        // println!("-------------------------------");
-        // println!("c4: {:?}", c0.coeffs[4]);
-        // println!("-------------------------------");
-        // println!("c5: {:?}", c0.coeffs[5]);
-        // println!("-------------------------------");
-
-        // println!("c0: {:?}", c1.coeffs[0]);
-        // println!("-------------------------------");
-        // println!("c1: {:?}", c1.coeffs[1]);
-        // println!("-------------------------------");
-        // println!("c2: {:?}", c1.coeffs[2]);
-        // println!("-------------------------------");
-        // println!("c3: {:?}", c1.coeffs[3]);
-        // println!("-------------------------------");
-        // println!("c4: {:?}", c1.coeffs[4]);
-        // println!("-------------------------------");
-        // println!("c5: {:?}", c1.coeffs[5]);
-        // println!("-------------------------------");
-
         Self::new(vec![
             c0.coeffs[0].clone(),
             c0.coeffs[1].clone(),

@@ -189,7 +189,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
 
         let c0 = fq6_c2.mul(builder, c1);
         let c0 = c0.mul_by_nonresidue(builder);
-        let c1 = fq6_c0.mul(builder, c1);
+        let c1 = fq6_c0.mul(builder, &c1);
         let c2 = fq6_c1.mul(builder, &c1);
 
         Self::new(vec![
