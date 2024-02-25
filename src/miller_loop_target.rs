@@ -296,10 +296,9 @@ fn ell<F: RichField + Extendable<D>, const D: usize>(
 mod tests {
     use ark_bls12_381::Fq12;
     use ark_ff::Field;
-    use num::One;
+    use num::{One, Zero};
     use plonky2::{
-        field::goldilocks_field::GoldilocksField,
-        plonk::{circuit_builder::CircuitBuilder, circuit_data::CircuitConfig},
+        field::goldilocks_field::GoldilocksField, iop::witness::PartialWitness, plonk::{circuit_builder::CircuitBuilder, circuit_data::CircuitConfig, config::PoseidonGoldilocksConfig}
     };
 
     use crate::{
@@ -308,6 +307,7 @@ mod tests {
         miller_loop_target::multi_miller_loop,
     };
     type F = GoldilocksField;
+    type C = PoseidonGoldilocksConfig;
     const D: usize = 2;
 
     #[test]
@@ -315,6 +315,7 @@ mod tests {
         let config = CircuitConfig::pairing_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
         let one = Fq12Target::constant(&mut builder, Fq12::ONE);
+        let zero = Fq12Target::constant(&mut builder, Fq12::zero());
         let test_fq12_one = Fq12Target::constant(&mut builder, Fq12::one());
         let result_mml = multi_miller_loop(&[(
             &G1AffineTarget::<F, D>::identity(),
@@ -322,12 +323,15 @@ mod tests {
         )])
         .0;
 
+        println!("====================================================================");
         println!("result_mml is: {:?}", result_mml);
+        println!("====================================================================");
 
-        // println!(
-        //     "G2AffineTarget::<F, D>::generator() is: {:?}",
-        //     G2AffineTarget::<F, D>::generator()
-        // );
-        assert!(false);
+        Fq12Target::connect(&mut builder, &result_mml, &test_fq12_one);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
     }
 }

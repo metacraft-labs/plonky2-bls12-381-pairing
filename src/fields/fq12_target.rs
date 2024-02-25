@@ -190,6 +190,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         }
     }
 
+    // COEFFS
     pub fn mul_by_014(
         &self,
         builder: &mut CircuitBuilder<F, D>,
@@ -228,6 +229,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         ])
     }
 
+    // COEFFS
     pub fn square(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
         let fq6_c0 = Fq6Target::new(self.coeffs[..6].to_vec());
         let fq6_c1 = Fq6Target::new(self.coeffs[6..12].to_vec());
