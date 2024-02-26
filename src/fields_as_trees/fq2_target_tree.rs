@@ -1,7 +1,7 @@
 use ark_bls12_381::Fq;
 use ark_std::{One, Zero};
 use plonky2::{
-    field::extension::Extendable, hash::hash_types::RichField,
+    field::extension::Extendable, hash::hash_types::RichField, iop::target::BoolTarget,
     plonk::circuit_builder::CircuitBuilder,
 };
 use plonky2_ecdsa::gadgets::nonnative::CircuitBuilderNonNative;
@@ -96,6 +96,8 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
             c1: self.c0.add(builder, &self.c1),
         }
     }
+
+    pub fn select(builder: &mut CircuitBuilder<F, D>, lhs: &Self, rhs: &Self, flag: &BoolTarget) {}
 
     pub fn connect(builder: &mut CircuitBuilder<F, D>, lhs: &Self, rhs: &Self) {
         builder.connect_nonnative(&lhs.c0.target, &rhs.c0.target);

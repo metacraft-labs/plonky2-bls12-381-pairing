@@ -54,6 +54,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         }
     }
 
+    // Derived from https://github.com/onurinanc/noir-bls-signature/blob/a3d19b69b4cd8698afd8f3ad8ca2a77495c58c0e/src/bls12_381/fp6.nr#L53
     pub fn mul(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> Self {
         let a_a = self.c0.mul(builder, rhs.c0.clone());
         let b_b = self.c1.mul(builder, rhs.c1.clone());
