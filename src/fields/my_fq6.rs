@@ -22,9 +22,7 @@ impl From<Fq6> for MyFq6 {
         let c20 = c2.c0; // w^2 u^0
         let c21 = c2.c1; // w^2 u^1
 
-        let coeffs = [
-            c00, c10, c20, c01, c11, c21
-        ];
+        let coeffs = [c00, c10, c20, c01, c11, c21];
         Self { coeffs }
     }
 }
@@ -41,11 +39,7 @@ impl From<MyFq6> for Fq6 {
         let c20 = coeffs[2]; // w^2 u^0
         let c21 = coeffs[5]; // w^2 u^1
 
-        Fq6::new(
-            Fq2::new(c00, c01),
-            Fq2::new(c10, c11),
-            Fq2::new(c20, c21),
-        )
+        Fq6::new(Fq2::new(c00, c01), Fq2::new(c10, c11), Fq2::new(c20, c21))
     }
 }
 

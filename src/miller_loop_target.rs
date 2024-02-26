@@ -295,10 +295,14 @@ fn ell<F: RichField + Extendable<D>, const D: usize>(
 #[cfg(test)]
 mod tests {
     use ark_bls12_381::Fq12;
-    use ark_ff::Field;
-    use num::{One, Zero};
+    use num::One;
     use plonky2::{
-        field::goldilocks_field::GoldilocksField, iop::witness::PartialWitness, plonk::{circuit_builder::CircuitBuilder, circuit_data::CircuitConfig, config::PoseidonGoldilocksConfig}
+        field::goldilocks_field::GoldilocksField,
+        iop::witness::PartialWitness,
+        plonk::{
+            circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
+            config::PoseidonGoldilocksConfig,
+        },
     };
 
     use crate::{
@@ -314,8 +318,6 @@ mod tests {
     fn miller_loop_result() {
         let config = CircuitConfig::pairing_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
-        let one = Fq12Target::constant(&mut builder, Fq12::ONE);
-        let zero = Fq12Target::constant(&mut builder, Fq12::zero());
         let test_fq12_one = Fq12Target::constant(&mut builder, Fq12::one());
         let result_mml = multi_miller_loop(&[(
             &G1AffineTarget::<F, D>::identity(),

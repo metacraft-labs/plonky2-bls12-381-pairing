@@ -190,7 +190,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         }
     }
 
-    // COEFFS
+    // COEFFSS
     pub fn mul_by_014(
         &self,
         builder: &mut CircuitBuilder<F, D>,
@@ -198,8 +198,39 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         c1: &Fq2Target<F, D>,
         c4: &Fq2Target<F, D>,
     ) -> Self {
-        let fq6_from_fq12_c0 = Fq6Target::new(self.coeffs[0..6].to_vec());
-        let fq6_from_fq12_c1 = Fq6Target::new(self.coeffs[6..12].to_vec());
+        let coeffs = &self.coeffs;
+        let c000 = &coeffs[0]; // w^0 u^0
+        let c001 = &coeffs[6]; // w^0 u^1
+        let c010 = &coeffs[2]; // w^2 u^0
+        let c011 = &coeffs[8]; // w^2 u^1
+        let c020 = &coeffs[4]; // w^4 u^0
+        let c021 = &coeffs[10]; // w^4 u^1
+        let c100 = &coeffs[1]; // w^1 u^0
+        let c101 = &coeffs[7]; // w^1 u^1
+        let c110 = &coeffs[3]; // w^3 u^0
+        let c111 = &coeffs[9]; // w^3 u^1
+        let c120 = &coeffs[5]; // w^5 u^0
+        let c121 = &coeffs[11]; // w^5 u^1
+
+        let fq6_from_fq12_c0 = Fq6Target::new(vec![
+            c000.clone(),
+            c001.clone(),
+            c010.clone(),
+            c011.clone(),
+            c020.clone(),
+            c021.clone(),
+        ]);
+        let fq6_from_fq12_c1 = Fq6Target::new(vec![
+            c100.clone(),
+            c101.clone(),
+            c110.clone(),
+            c111.clone(),
+            c120.clone(),
+            c121.clone(),
+        ]);
+
+        // let fq6_from_fq12_c0 = Fq6Target::new(self.coeffs[0..6].to_vec());
+        // let fq6_from_fq12_c1 = Fq6Target::new(self.coeffs[6..12].to_vec());
         let temp_fq6_from_fq12_c0 = fq6_from_fq12_c0.clone();
         let temp_fq6_from_fq12_c1 = fq6_from_fq12_c1.clone();
         let aa = fq6_from_fq12_c0.mul_by_01(builder, c0, c1);
@@ -229,7 +260,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         ])
     }
 
-    // COEFFS
+    // COEFFSS
     pub fn square(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
         let fq6_c0 = Fq6Target::new(self.coeffs[..6].to_vec());
         let fq6_c1 = Fq6Target::new(self.coeffs[6..12].to_vec());

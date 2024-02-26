@@ -1,14 +1,26 @@
 use ark_bls12_381::{Fq, Fq6};
 use ark_ff::Field;
 use itertools::Itertools;
-use num::{BigUint, Zero};
+use num::BigUint;
 use plonky2::{
-    field::extension::Extendable, hash::hash_types::RichField, iop::{generator::{GeneratedValues, SimpleGenerator}, target::{BoolTarget, Target}, witness::PartitionWitness},
-    plonk::circuit_builder::CircuitBuilder, util::serialization::{Buffer, IoError},
+    field::extension::Extendable,
+    hash::hash_types::RichField,
+    iop::{
+        generator::{GeneratedValues, SimpleGenerator},
+        target::{BoolTarget, Target},
+        witness::PartitionWitness,
+    },
+    plonk::circuit_builder::CircuitBuilder,
+    util::serialization::{Buffer, IoError},
 };
-use plonky2_ecdsa::gadgets::{biguint::{GeneratedValuesBigUint, WitnessBigUint}, nonnative::CircuitBuilderNonNative};
+use plonky2_ecdsa::gadgets::{
+    biguint::{GeneratedValuesBigUint, WitnessBigUint},
+    nonnative::CircuitBuilderNonNative,
+};
 
-use super::{fq2_target::Fq2Target, fq_target::FqTarget, helpers::from_biguint_to_fq, my_fq6::MyFq6};
+use super::{
+    fq2_target::Fq2Target, fq_target::FqTarget, helpers::from_biguint_to_fq, my_fq6::MyFq6,
+};
 
 #[derive(Debug, Clone)]
 pub struct Fq6Target<F: RichField + Extendable<D>, const D: usize> {
@@ -238,23 +250,23 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         ])
     }
 
-    // COEFFS
+    // COEFFSS
     pub fn mul_by_01(
         self,
         builder: &mut CircuitBuilder<F, D>,
         c0: &Fq2Target<F, D>,
         c1: &Fq2Target<F, D>,
     ) -> Self {
-        // TRY THIS WAY
-        let fq6_c00 = self.coeffs[0];
-        let fq6_c10 = self.coeffs[1];
-        let fq6_c20 = self.coeffs[2];
-        let fq6_c01 = self.coeffs[3];
-        let fq6_c11 = self.coeffs[4];
-        let fq6_c21 = self.coeffs[5];
-        let fq6_c0 = Fq2Target::new(self.coeffs[..2].to_vec());
-        let fq6_c1 = Fq2Target::new(self.coeffs[2..4].to_vec());
-        let fq6_c2 = Fq2Target::new(self.coeffs[4..6].to_vec());
+        let fq6_c00 = &self.coeffs[0];
+        let fq6_c10 = &self.coeffs[1];
+        let fq6_c20 = &self.coeffs[2];
+        let fq6_c01 = &self.coeffs[3];
+        let fq6_c11 = &self.coeffs[4];
+        let fq6_c21 = &self.coeffs[5];
+
+        let fq6_c0 = Fq2Target::new(vec![fq6_c00.clone(), fq6_c01.clone()]);
+        let fq6_c1 = Fq2Target::new(vec![fq6_c10.clone(), fq6_c11.clone()]);
+        let fq6_c2 = Fq2Target::new(vec![fq6_c20.clone(), fq6_c21.clone()]);
 
         let a_a = fq6_c0.mul(builder, c0);
         let b_b = fq6_c1.mul(builder, c1);
@@ -274,19 +286,26 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
 
         Self::new(vec![
             t1.coeffs[0].clone(),
-            t1.coeffs[1].clone(),
             t2.coeffs[0].clone(),
-            t2.coeffs[1].clone(),
             t3.coeffs[0].clone(),
+            t1.coeffs[1].clone(),
+            t2.coeffs[1].clone(),
             t3.coeffs[1].clone(),
         ])
     }
 
-    // COEFFS
+    // COEFFSS
     pub fn mul_by_1(self, builder: &mut CircuitBuilder<F, D>, c1: &Fq2Target<F, D>) -> Self {
-        let fq6_c0 = Fq2Target::new(self.coeffs[..2].to_vec());
-        let fq6_c1 = Fq2Target::new(self.coeffs[2..4].to_vec());
-        let fq6_c2 = Fq2Target::new(self.coeffs[4..6].to_vec());
+        let fq6_c00 = &self.coeffs[0];
+        let fq6_c10 = &self.coeffs[1];
+        let fq6_c20 = &self.coeffs[2];
+        let fq6_c01 = &self.coeffs[3];
+        let fq6_c11 = &self.coeffs[4];
+        let fq6_c21 = &self.coeffs[5];
+
+        let fq6_c0 = Fq2Target::new(vec![fq6_c00.clone(), fq6_c01.clone()]);
+        let fq6_c1 = Fq2Target::new(vec![fq6_c10.clone(), fq6_c11.clone()]);
+        let fq6_c2 = Fq2Target::new(vec![fq6_c20.clone(), fq6_c21.clone()]);
 
         let c0 = fq6_c2.mul(builder, c1);
         let c0 = c0.mul_by_nonresidue(builder);
@@ -295,15 +314,15 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
 
         Self::new(vec![
             c0.coeffs[0].clone(),
-            c0.coeffs[1].clone(),
             c1.coeffs[0].clone(),
-            c1.coeffs[1].clone(),
             c2.coeffs[0].clone(),
+            c0.coeffs[1].clone(),
+            c1.coeffs[1].clone(),
             c2.coeffs[1].clone(),
         ])
     }
 
-    // COEFFS
+    // COEFFSS
     /// Multiply by quadratic nonresidue v.
     pub fn mul_by_nonresidue(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
         // Given a + bv + cv^2, this produces
@@ -311,9 +330,16 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         // but because v^3 = u + 1, we have
         //     c(u + 1) + av + v^2
 
-        let fq6_c0 = Fq2Target::new(self.coeffs[..2].to_vec());
-        let fq6_c1 = Fq2Target::new(self.coeffs[2..4].to_vec());
-        let fq6_c2 = Fq2Target::new(self.coeffs[4..6].to_vec());
+        let fq6_c00 = &self.coeffs[0];
+        let fq6_c10 = &self.coeffs[1];
+        let fq6_c20 = &self.coeffs[2];
+        let fq6_c01 = &self.coeffs[3];
+        let fq6_c11 = &self.coeffs[4];
+        let fq6_c21 = &self.coeffs[5];
+
+        let fq6_c0 = Fq2Target::new(vec![fq6_c00.clone(), fq6_c01.clone()]);
+        let fq6_c1 = Fq2Target::new(vec![fq6_c10.clone(), fq6_c11.clone()]);
+        let fq6_c2 = Fq2Target::new(vec![fq6_c20.clone(), fq6_c21.clone()]);
 
         let c0 = fq6_c2.mul_by_nonresidue(builder);
         let c1 = fq6_c0;
@@ -321,10 +347,10 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
 
         Self::new(vec![
             c0.coeffs[0].clone(),
-            c0.coeffs[1].clone(),
             c1.coeffs[0].clone(),
-            c1.coeffs[1].clone(),
             c2.coeffs[0].clone(),
+            c0.coeffs[1].clone(),
+            c1.coeffs[1].clone(),
             c2.coeffs[1].clone(),
         ])
     }
@@ -355,7 +381,9 @@ struct Fq6InverseGenerator<F: RichField + Extendable<D>, const D: usize> {
     inv: Fq6Target<F, D>,
 }
 
-impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F> for Fq6InverseGenerator<F, D> {
+impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F>
+    for Fq6InverseGenerator<F, D>
+{
     fn dependencies(&self) -> Vec<Target> {
         self.x
             .coeffs
@@ -403,12 +431,16 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F> for Fq6Inv
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::{Fq12, Fq2, Fq6};
+    use ark_bls12_381::Fq6;
     use ark_ff::{Field, UniformRand};
-    use num::One;
-    use plonky2::{field::goldilocks_field::GoldilocksField, iop::witness::PartialWitness, plonk::{circuit_builder::CircuitBuilder, circuit_data::CircuitConfig, config::PoseidonGoldilocksConfig}};
-
-    use crate::fields::{fq12_target::Fq12Target, fq2_target::Fq2Target};
+    use plonky2::{
+        field::goldilocks_field::GoldilocksField,
+        iop::witness::PartialWitness,
+        plonk::{
+            circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
+            config::PoseidonGoldilocksConfig,
+        },
+    };
 
     use super::Fq6Target;
 
