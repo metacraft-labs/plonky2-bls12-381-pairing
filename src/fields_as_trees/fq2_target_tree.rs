@@ -97,7 +97,22 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
         }
     }
 
-    pub fn select(builder: &mut CircuitBuilder<F, D>, lhs: &Self, rhs: &Self, flag: &BoolTarget) {}
+    pub fn select(
+        builder: &mut CircuitBuilder<F, D>,
+        lhs: &Self,
+        rhs: &Self,
+        flag: &BoolTarget,
+    ) -> Self {
+        let lhs_c0 = &lhs.c0;
+        let lhs_c1 = &lhs.c1;
+        let rhs_c0 = &rhs.c0;
+        let rhs_c1 = &rhs.c1;
+
+        Self {
+            c0: FqTarget::select(builder, &lhs_c0, &rhs_c0, flag),
+            c1: FqTarget::select(builder, &lhs_c1, &rhs_c1, flag)
+        }
+    }
 
     pub fn connect(builder: &mut CircuitBuilder<F, D>, lhs: &Self, rhs: &Self) {
         builder.connect_nonnative(&lhs.c0.target, &rhs.c0.target);

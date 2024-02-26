@@ -63,4 +63,61 @@ impl<F: RichField + Extendable<D>, const D: usize> G1AffineTarget<F, D> {
             infinity: BoolTarget::new_unsafe(builder.zero()),
         }
     }
+
+    pub fn is_point_equal_to(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> bool {
+        // The only cases in which two points are equal are
+        // 1. infinity is set on both
+        // 2. infinity is not set on both, and their coordinates are equal
+
+        let one = builder.constant(F::from_canonical_u8(1));
+        let is_self_inf_true = self.infinity.target.eq(&one);
+        let is_rhs_inf_true = rhs.infinity.target.eq(&one);
+
+        let self_x_eq_rhs_x = (self.x.is_equal(builder, &rhs.x)).target.eq(&one);
+        let self_y_eq_rhs_y = (self.y.is_equal(builder, &rhs.y)).target.eq(&one);
+
+        let onee = FqTarget::constant(builder, Fq::one());
+        let oneee = FqTarget::constant(builder, Fq::zero());
+
+        let test_purposes = onee.is_equal(builder, &oneee).target.eq(&one);
+
+        println!("test_purposes: {:?}", test_purposes);
+        println!("is_self_inf_true: {:?}", !is_self_inf_true);
+        println!("is_rhs_inf_true: {:?}", !is_rhs_inf_true);
+        println!("self_x_eq_rhs_x: {:?}", self_x_eq_rhs_x);
+        println!("self_y_eq_rhs_y: {:?}", self_y_eq_rhs_y);
+        (is_self_inf_true & is_rhs_inf_true) | ((!is_self_inf_true) & (!is_rhs_inf_true) & self_x_eq_rhs_x & self_y_eq_rhs_y)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use plonky2::{
+        field::goldilocks_field::GoldilocksField,
+        iop::witness::PartialWitness,
+        plonk::{
+            circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
+            config::PoseidonGoldilocksConfig,
+        },
+    };
+    use super::G1AffineTarget;
+    type F = GoldilocksField;
+    type C = PoseidonGoldilocksConfig;
+    const D: usize = 2;
+
+
+    #[test]
+    fn test_affine_point_equality() {
+        let a: G1AffineTarget<F, D> = G1AffineTarget::generator();
+        let b: G1AffineTarget<F, D> = G1AffineTarget::identity();
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        assert!(a.is_point_equal_to(&mut builder, &a));
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
 }
