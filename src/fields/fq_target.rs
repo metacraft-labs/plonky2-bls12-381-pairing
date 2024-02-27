@@ -102,6 +102,16 @@ impl<F: RichField + Extendable<D>, const D: usize> FqTarget<F, D> {
         }
     }
 
+    pub fn test_is_equal(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) {
+        let a_limbs = self.target.value.limbs.iter().map(|x| x.0).collect_vec();
+        let b_limbs = rhs.target.value.limbs.iter().map(|x| x.0).collect_vec();
+        assert_eq!(a_limbs.len(), b_limbs.len());
+
+        for i in 0..a_limbs.len() {
+            builder.connect(self.target.value.limbs[i].0, rhs.target.value.limbs[i].0);
+        }
+    }
+
     pub fn is_equal(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> BoolTarget {
         let a_limbs = self.target.value.limbs.iter().map(|x| x.0).collect_vec();
         let b_limbs = rhs.target.value.limbs.iter().map(|x| x.0).collect_vec();

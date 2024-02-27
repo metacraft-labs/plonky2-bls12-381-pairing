@@ -29,14 +29,14 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
         Self { c0: one, c1: zero }
     }
 
-    pub fn add(&self, builder: &mut CircuitBuilder<F, D>, rhs: Self) -> Self {
+    pub fn add(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> Self {
         Self {
             c0: self.c0.add(builder, &rhs.c0),
             c1: self.c1.add(builder, &rhs.c1),
         }
     }
 
-    pub fn sub(&self, builder: &mut CircuitBuilder<F, D>, rhs: Self) -> Self {
+    pub fn sub(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> Self {
         Self {
             c0: self.c0.sub(builder, &rhs.c0),
             c1: self.c1.sub(builder, &rhs.c1),
@@ -63,12 +63,16 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
         Self { c0, c1 }
     }
 
-    pub fn mul(&self, builder: &mut CircuitBuilder<F, D>, rhs: Self) -> Self {
+    pub fn frobenius_map(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        self.conjugate(builder)
+    }
+
+    pub fn mul(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> Self {
         let a0 = &self.c0;
         let a1 = &self.c1;
 
-        let b0 = rhs.c0;
-        let b1 = rhs.c1;
+        let b0 = &rhs.c0;
+        let b1 = &rhs.c1;
 
         let a0_b0 = a0.mul(builder, &b0);
         let a1_b1 = a1.mul(builder, &b1);
@@ -88,6 +92,23 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
             c0: self.c0.clone(),
             c1: self.c1.neg(builder),
         }
+    }
+
+    pub fn is_equal(
+        &self,
+        builder: &mut CircuitBuilder<F, D>,
+        rhs: &Self,
+    ) -> (BoolTarget, BoolTarget) {
+        let self_c0 = &self.c0;
+        let self_c1 = &self.c1;
+
+        let rhs_c0 = &rhs.c0;
+        let rhs_c1 = &rhs.c1;
+
+        let r_c0 = self_c0.is_equal(builder, rhs_c0);
+        let r_c1 = self_c1.is_equal(builder, rhs_c1);
+
+        (r_c0, r_c1)
     }
 
     pub fn mul_by_nonresidue(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
@@ -110,7 +131,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
 
         Self {
             c0: FqTarget::select(builder, &lhs_c0, &rhs_c0, flag),
-            c1: FqTarget::select(builder, &lhs_c1, &rhs_c1, flag)
+            c1: FqTarget::select(builder, &lhs_c1, &rhs_c1, flag),
         }
     }
 
@@ -219,7 +240,7 @@ mod tests {
             ),
         };
 
-        let a_plus_b = a.add(&mut builder, b);
+        let a_plus_b = a.add(&mut builder, &b);
         Fq2Target::connect(&mut builder, &c, &a_plus_b);
 
         let pw = PartialWitness::new();
@@ -306,7 +327,7 @@ mod tests {
             ),
         };
 
-        let a_sub_b = a.sub(&mut builder, b);
+        let a_sub_b = a.sub(&mut builder, &b);
         Fq2Target::connect(&mut builder, &c, &a_sub_b);
 
         let pw = PartialWitness::new();

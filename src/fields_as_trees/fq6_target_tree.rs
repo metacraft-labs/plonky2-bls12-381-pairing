@@ -1,8 +1,10 @@
 use plonky2::{
-    field::extension::Extendable, hash::hash_types::RichField,
+    field::extension::Extendable, hash::hash_types::RichField, iop::target::BoolTarget,
     plonk::circuit_builder::CircuitBuilder,
 };
 use plonky2_ecdsa::gadgets::nonnative::CircuitBuilderNonNative;
+
+use crate::fields::{bls12_381base::Bls12_381Base, fq_target::FqTarget};
 
 use super::fq2_target_tree::Fq2Target;
 
@@ -32,17 +34,17 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
 
     pub fn add(&self, builder: &mut CircuitBuilder<F, D>, rhs: Self) -> Self {
         Self {
-            c0: self.c0.add(builder, rhs.c0),
-            c1: self.c1.add(builder, rhs.c1),
-            c2: self.c2.add(builder, rhs.c2),
+            c0: self.c0.add(builder, &rhs.c0),
+            c1: self.c1.add(builder, &rhs.c1),
+            c2: self.c2.add(builder, &rhs.c2),
         }
     }
 
     pub fn sub(&self, builder: &mut CircuitBuilder<F, D>, rhs: Self) -> Self {
         Self {
-            c0: self.c0.sub(builder, rhs.c0),
-            c1: self.c1.sub(builder, rhs.c1),
-            c2: self.c2.sub(builder, rhs.c2),
+            c0: self.c0.sub(builder, &rhs.c0),
+            c1: self.c1.sub(builder, &rhs.c1),
+            c2: self.c2.sub(builder, &rhs.c2),
         }
     }
 
@@ -54,43 +56,130 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         }
     }
 
+    pub fn select(
+        builder: &mut CircuitBuilder<F, D>,
+        lhs: &Self,
+        rhs: &Self,
+        flag: &BoolTarget,
+    ) -> Self {
+        let lhs_c0 = &lhs.c0;
+        let lhs_c1 = &lhs.c1;
+        let lhs_c2 = &lhs.c2;
+
+        let rhs_c0 = &rhs.c0;
+        let rhs_c1 = &rhs.c1;
+        let rhs_c2 = &rhs.c2;
+
+        Self {
+            c0: Fq2Target::select(builder, &lhs_c0, &rhs_c0, flag),
+            c1: Fq2Target::select(builder, &lhs_c1, &rhs_c1, flag),
+            c2: Fq2Target::select(builder, &lhs_c2, &rhs_c2, flag),
+        }
+    }
+
+    pub fn is_equal(
+        &self,
+        builder: &mut CircuitBuilder<F, D>,
+        rhs: &Self,
+    ) -> (
+        (BoolTarget, BoolTarget),
+        (BoolTarget, BoolTarget),
+        (BoolTarget, BoolTarget),
+    ) {
+        let self_c0 = &self.c0;
+        let self_c1 = &self.c1;
+        let self_c2 = &self.c2;
+
+        let rhs_c0 = &rhs.c0;
+        let rhs_c1 = &rhs.c1;
+        let rhs_c2 = &rhs.c2;
+
+        let r_c0 = self_c0.is_equal(builder, rhs_c0);
+        let r_c1 = self_c1.is_equal(builder, rhs_c1);
+        let r_c2 = self_c2.is_equal(builder, rhs_c2);
+
+        (r_c0, r_c1, r_c2)
+    }
+
+    pub fn frobenius_map(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let c0 = self.c0.frobenius_map(builder);
+        let c1 = self.c1.frobenius_map(builder);
+        let c2 = self.c2.frobenius_map(builder);
+
+        // c1 = c1 * (u + 1)^((p - 1) / 3)
+        let temp = Fq2Target {
+            c0: FqTarget::zero(builder),
+            c1: FqTarget::fp_constant(
+                builder,
+                Bls12_381Base([
+                    0xcd03_c9e4_8671_f071,
+                    0x5dab_2246_1fcd_a5d2,
+                    0x5870_42af_d385_1b95,
+                    0x8eb6_0ebe_01ba_cb9e,
+                    0x03f9_7d6e_83d0_50d2,
+                    0x18f0_2065_5463_8741,
+                ]),
+            ),
+        };
+        let c1 = c1.mul(builder, &temp);
+
+        // c2 = c2 * (u + 1)^((2p - 2) / 3)
+        let temp = Fq2Target {
+            c0: FqTarget::fp_constant(
+                builder,
+                Bls12_381Base([
+                    0x890d_c9e4_8675_45c3,
+                    0x2af3_2253_3285_a5d5,
+                    0x5088_0866_309b_7e2c,
+                    0xa20d_1b8c_7e88_1024,
+                    0x14e4_f04f_e2db_9068,
+                    0x14e5_6d3f_1564_853a,
+                ]),
+            ),
+            c1: FqTarget::zero(builder),
+        };
+        let c2 = c2.mul(builder, &temp);
+
+        Self { c0, c1, c2 }
+    }
+
     // Derived from https://github.com/onurinanc/noir-bls-signature/blob/a3d19b69b4cd8698afd8f3ad8ca2a77495c58c0e/src/bls12_381/fp6.nr#L53
     pub fn mul(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> Self {
-        let a_a = self.c0.mul(builder, rhs.c0.clone());
-        let b_b = self.c1.mul(builder, rhs.c1.clone());
-        let c_c = self.c2.mul(builder, rhs.c2.clone());
+        let a_a = self.c0.mul(builder, &rhs.c0);
+        let b_b = self.c1.mul(builder, &rhs.c1);
+        let c_c = self.c2.mul(builder, &rhs.c2);
 
         // Construct t1
         let t1 = rhs.c1.clone();
-        let t1 = t1.add(builder, rhs.c2.clone());
+        let t1 = t1.add(builder, &rhs.c2);
 
-        let tmp = self.c1.add(builder, self.c2.clone());
-        let t1 = t1.mul(builder, tmp);
-        let t1 = t1.sub(builder, b_b.clone());
-        let t1 = t1.sub(builder, c_c.clone());
+        let tmp = self.c1.add(builder, &self.c2);
+        let t1 = t1.mul(builder, &tmp);
+        let t1 = t1.sub(builder, &b_b);
+        let t1 = t1.sub(builder, &c_c);
         let t1 = t1.mul_by_nonresidue(builder);
-        let t1 = t1.add(builder, a_a.clone());
+        let t1 = t1.add(builder, &a_a);
 
         // Construct t3
         let t3 = rhs.c0.clone();
-        let t3 = t3.add(builder, rhs.c2.clone());
+        let t3 = t3.add(builder, &rhs.c2);
 
-        let tmp = self.c0.add(builder, self.c2.clone());
-        let t3 = t3.mul(builder, tmp);
-        let t3 = t3.sub(builder, a_a.clone());
-        let t3 = t3.add(builder, b_b.clone());
-        let t3 = t3.sub(builder, c_c.clone());
+        let tmp = self.c0.add(builder, &self.c2);
+        let t3 = t3.mul(builder, &tmp);
+        let t3 = t3.sub(builder, &a_a);
+        let t3 = t3.add(builder, &b_b);
+        let t3 = t3.sub(builder, &c_c);
 
         // Construct t2
         let t2 = rhs.c0.clone();
-        let t2 = t2.add(builder, rhs.c1.clone());
+        let t2 = t2.add(builder, &rhs.c1);
 
-        let tmp = self.c0.add(builder, self.c1.clone());
-        let t2 = t2.mul(builder, tmp);
-        let t2 = t2.sub(builder, a_a);
-        let t2 = t2.sub(builder, b_b);
+        let tmp = self.c0.add(builder, &self.c1);
+        let t2 = t2.mul(builder, &tmp);
+        let t2 = t2.sub(builder, &a_a);
+        let t2 = t2.sub(builder, &b_b);
         let c_c_mul_by_nonres = c_c.mul_by_nonresidue(builder);
-        let t2 = t2.add(builder, c_c_mul_by_nonres);
+        let t2 = t2.add(builder, &c_c_mul_by_nonres);
 
         Self {
             c0: t1,
@@ -121,21 +210,21 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         c0: &Fq2Target<F, D>,
         c1: &Fq2Target<F, D>,
     ) -> Self {
-        let a_a = self.c0.mul(builder, c0.clone());
-        let b_b = self.c1.mul(builder, c1.clone());
+        let a_a = self.c0.mul(builder, &c0);
+        let b_b = self.c1.mul(builder, &c1);
 
-        let t1 = self.c2.mul(builder, c1.clone());
+        let t1 = self.c2.mul(builder, &c1);
         let t1 = t1.mul_by_nonresidue(builder);
-        let t1 = t1.add(builder, a_a.clone());
+        let t1 = t1.add(builder, &a_a);
 
-        let t2 = c0.add(builder, c1.clone());
-        let temp = self.c0.add(builder, self.c1.clone());
-        let t2 = t2.mul(builder, temp);
-        let t2 = t2.sub(builder, a_a);
-        let t2 = t2.sub(builder, b_b.clone());
+        let t2 = c0.add(builder, &c1);
+        let temp = self.c0.add(builder, &self.c1);
+        let t2 = t2.mul(builder, &temp);
+        let t2 = t2.sub(builder, &a_a);
+        let t2 = t2.sub(builder, &b_b);
 
-        let t3 = self.c2.mul(builder, c0.clone());
-        let t3 = t3.add(builder, b_b);
+        let t3 = self.c2.mul(builder, c0);
+        let t3 = t3.add(builder, &b_b);
 
         Self {
             c0: t1,
@@ -145,35 +234,35 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
     }
 
     pub fn mul_by_1(&self, builder: &mut CircuitBuilder<F, D>, c1: &Fq2Target<F, D>) -> Self {
-        let c0 = self.c2.mul(builder, c1.clone());
+        let c0 = self.c2.mul(builder, &c1);
         Self {
             c0: c0.mul_by_nonresidue(builder),
-            c1: self.c0.mul(builder, c1.clone()),
-            c2: self.c1.mul(builder, c1.clone()),
+            c1: self.c0.mul(builder, &c1),
+            c2: self.c1.mul(builder, &c1),
         }
     }
 
     pub fn square(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
         let s0 = self.c0.square(builder);
-        let ab = self.c0.mul(builder, self.c1.clone());
-        let s1 = ab.add(builder, ab.clone());
-        let s2 = self.c0.sub(builder, self.c1.clone());
-        let s2 = s2.add(builder, self.c2.clone());
+        let ab = self.c0.mul(builder, &self.c1);
+        let s1 = ab.add(builder, &ab);
+        let s2 = self.c0.sub(builder, &self.c1);
+        let s2 = s2.add(builder, &self.c2);
         let s2 = s2.square(builder);
-        let bc = self.c1.mul(builder, self.c2.clone());
-        let s3 = bc.add(builder, bc.clone());
+        let bc = self.c1.mul(builder, &self.c2);
+        let s3 = bc.add(builder, &bc);
         let s4 = self.c2.square(builder);
 
         let c0 = s3.mul_by_nonresidue(builder);
-        let c0 = c0.add(builder, s0.clone());
+        let c0 = c0.add(builder, &s0);
 
         let c1 = s4.mul_by_nonresidue(builder);
-        let c1 = c1.add(builder, s1.clone());
+        let c1 = c1.add(builder, &s1);
 
-        let c2 = s1.add(builder, s2);
-        let c2 = c2.add(builder, s3);
-        let c2 = c2.sub(builder, s0);
-        let c2 = c2.sub(builder, s4);
+        let c2 = s1.add(builder, &s2);
+        let c2 = c2.add(builder, &s3);
+        let c2 = c2.sub(builder, &s0);
+        let c2 = c2.sub(builder, &s4);
 
         Self { c0, c1, c2 }
     }

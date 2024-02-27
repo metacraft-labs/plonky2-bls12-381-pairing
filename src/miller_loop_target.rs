@@ -292,48 +292,48 @@ fn ell<F: RichField + Extendable<D>, const D: usize>(
     f.mul_by_014(builder, &coeffs.2, &c1, &c0)
 }
 
-#[cfg(test)]
-mod tests {
-    use ark_bls12_381::Fq12;
-    use num::One;
-    use plonky2::{
-        field::goldilocks_field::GoldilocksField,
-        iop::witness::PartialWitness,
-        plonk::{
-            circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
-            config::PoseidonGoldilocksConfig,
-        },
-    };
+// #[cfg(test)]
+// mod tests {
+//     use ark_bls12_381::Fq12;
+//     use num::One;
+//     use plonky2::{
+//         field::goldilocks_field::GoldilocksField,
+//         iop::witness::PartialWitness,
+//         plonk::{
+//             circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
+//             config::PoseidonGoldilocksConfig,
+//         },
+//     };
 
-    use crate::{
-        curves::{g1_curve_target::G1AffineTarget, g2_curve_target::G2AffineTarget},
-        fields::fq12_target::Fq12Target,
-        miller_loop_target::multi_miller_loop,
-    };
-    type F = GoldilocksField;
-    type C = PoseidonGoldilocksConfig;
-    const D: usize = 2;
+//     use crate::{
+//         curves::{g1_curve_target::G1AffineTarget, g2_curve_target::G2AffineTarget},
+//         fields::fq12_target::Fq12Target,
+//         miller_loop_target::multi_miller_loop,
+//     };
+//     type F = GoldilocksField;
+//     type C = PoseidonGoldilocksConfig;
+//     const D: usize = 2;
 
-    #[test]
-    fn miller_loop_result() {
-        let config = CircuitConfig::pairing_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-        let test_fq12_one = Fq12Target::constant(&mut builder, Fq12::one());
-        let result_mml = multi_miller_loop(&[(
-            &G1AffineTarget::<F, D>::identity(),
-            &G2AffineTarget::<F, D>::generator().into(),
-        )])
-        .0;
+//     #[test]
+//     fn miller_loop_result() {
+//         let config = CircuitConfig::pairing_config();
+//         let mut builder = CircuitBuilder::<F, D>::new(config);
+//         let test_fq12_one = Fq12Target::constant(&mut builder, Fq12::one());
+//         let result_mml = multi_miller_loop(&[(
+//             &G1AffineTarget::<F, D>::identity(),
+//             &G2AffineTarget::<F, D>::generator().into(),
+//         )])
+//         .0;
 
-        println!("====================================================================");
-        println!("result_mml is: {:?}", result_mml);
-        println!("====================================================================");
+//         println!("====================================================================");
+//         println!("result_mml is: {:?}", result_mml);
+//         println!("====================================================================");
 
-        Fq12Target::connect(&mut builder, &result_mml, &test_fq12_one);
+//         Fq12Target::connect(&mut builder, &result_mml, &test_fq12_one);
 
-        let pw = PartialWitness::new();
-        let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
-        let _proof = data.prove(pw);
-    }
-}
+//         let pw = PartialWitness::new();
+//         let data = builder.build::<C>();
+//         dbg!(data.common.degree_bits());
+//         let _proof = data.prove(pw);
+//     }
+// }

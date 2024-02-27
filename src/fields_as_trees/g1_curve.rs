@@ -64,58 +64,53 @@ impl<F: RichField + Extendable<D>, const D: usize> G1AffineTarget<F, D> {
         }
     }
 
-    pub fn is_point_equal_to(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> bool {
+    pub fn is_point_equal_to(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> BoolTarget {
         // The only cases in which two points are equal are
         // 1. infinity is set on both
         // 2. infinity is not set on both, and their coordinates are equal
 
-        let one = builder.constant(F::from_canonical_u8(1));
-        let is_self_inf_true = self.infinity.target.eq(&one);
-        let is_rhs_inf_true = rhs.infinity.target.eq(&one);
+        let inf_set_on_both = builder.and(self.infinity, rhs.infinity);
+        let inf_not_set_on_self = builder.not(self.infinity);
+        let inf_not_set_on_rhs = builder.not(rhs.infinity);
+        let inf_not_set_on_both = builder.and(inf_not_set_on_self, inf_not_set_on_rhs);
+        let inf_not_set_on_both = builder.not(inf_not_set_on_both);
 
-        let self_x_eq_rhs_x = (self.x.is_equal(builder, &rhs.x)).target.eq(&one);
-        let self_y_eq_rhs_y = (self.y.is_equal(builder, &rhs.y)).target.eq(&one);
+        let x_eq_x = self.x.is_equal(builder, &rhs.x);
+        let y_eq_y = self.y.is_equal(builder, &rhs.y);
 
-        let onee = FqTarget::constant(builder, Fq::one());
-        let oneee = FqTarget::constant(builder, Fq::zero());
+        let x_y_are_eq = builder.and(x_eq_x, y_eq_y);
+        let second_pred = builder.and(x_y_are_eq, inf_not_set_on_both);
 
-        let test_purposes = onee.is_equal(builder, &oneee).target.eq(&one);
-
-        println!("test_purposes: {:?}", test_purposes);
-        println!("is_self_inf_true: {:?}", !is_self_inf_true);
-        println!("is_rhs_inf_true: {:?}", !is_rhs_inf_true);
-        println!("self_x_eq_rhs_x: {:?}", self_x_eq_rhs_x);
-        println!("self_y_eq_rhs_y: {:?}", self_y_eq_rhs_y);
-        (is_self_inf_true & is_rhs_inf_true) | ((!is_self_inf_true) & (!is_rhs_inf_true) & self_x_eq_rhs_x & self_y_eq_rhs_y)
+        builder.or(inf_set_on_both, second_pred)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::G1AffineTarget;
     use plonky2::{
-        field::goldilocks_field::GoldilocksField,
-        iop::witness::PartialWitness,
+        field::{goldilocks_field::GoldilocksField, types::Field},
+        iop::witness::{PartialWitness, WitnessWrite},
         plonk::{
             circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
             config::PoseidonGoldilocksConfig,
         },
     };
-    use super::G1AffineTarget;
     type F = GoldilocksField;
     type C = PoseidonGoldilocksConfig;
     const D: usize = 2;
 
-
     #[test]
-    fn test_affine_point_equality() {
+    fn test_g1affine_point_equality() {
         let a: G1AffineTarget<F, D> = G1AffineTarget::generator();
         let b: G1AffineTarget<F, D> = G1AffineTarget::identity();
 
         let config = CircuitConfig::pairing_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
-        assert!(a.is_point_equal_to(&mut builder, &a));
+        let a_point_eq_a_point = a.is_point_equal_to(&mut builder, &a);
 
-        let pw = PartialWitness::new();
+        let mut pw = PartialWitness::new();
+        pw.set_target(a_point_eq_a_point.target, F::ONE);
         let data = builder.build::<C>();
         dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);

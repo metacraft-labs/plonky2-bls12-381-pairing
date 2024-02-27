@@ -1,8 +1,10 @@
 use plonky2::{
-    field::extension::Extendable, hash::hash_types::RichField,
+    field::extension::Extendable, hash::hash_types::RichField, iop::target::BoolTarget,
     plonk::circuit_builder::CircuitBuilder,
 };
 use plonky2_ecdsa::gadgets::nonnative::CircuitBuilderNonNative;
+
+use crate::fields::{bls12_381base::Bls12_381Base, fq_target::FqTarget};
 
 use super::{fq2_target_tree::Fq2Target, fq6_target_tree::Fq6Target};
 
@@ -22,8 +24,8 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
 
     pub fn one(builder: &mut CircuitBuilder<F, D>) -> Self {
         Self {
-            c0: Fq6Target::zero(builder),
-            c1: Fq6Target::one(builder),
+            c0: Fq6Target::one(builder),
+            c1: Fq6Target::zero(builder),
         }
     }
 
@@ -46,6 +48,70 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
             c0: self.c0.neg(builder),
             c1: self.c1.neg(builder),
         }
+    }
+
+    pub fn conjugate(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        Self {
+            c0: self.c0.clone(),
+            c1: self.c1.neg(builder),
+        }
+    }
+
+    pub fn select(
+        builder: &mut CircuitBuilder<F, D>,
+        lhs: &Self,
+        rhs: &Self,
+        flag: &BoolTarget,
+    ) -> Self {
+        let lhs_c0 = &lhs.c0;
+        let lhs_c1 = &lhs.c1;
+        let rhs_c0 = &rhs.c0;
+        let rhs_c1 = &rhs.c1;
+
+        Self {
+            c0: Fq6Target::select(builder, &lhs_c0, &rhs_c0, flag),
+            c1: Fq6Target::select(builder, &lhs_c1, &rhs_c1, flag),
+        }
+    }
+
+    pub fn invert(&self, builder: &mut CircuitBuilder<F, D>) -> Option<Self> {}
+
+    pub fn frobenius_map(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let c0 = self.c0.frobenius_map(builder);
+        let c1 = self.c1.frobenius_map(builder);
+
+        // c1 = c1 * (u + 1)^((p - 1) / 6)
+        let temp = Fq6Target {
+            c0: Fq2Target {
+                c0: FqTarget::fp_constant(
+                    builder,
+                    Bls12_381Base([
+                        0x0708_9552_b319_d465,
+                        0xc669_5f92_b50a_8313,
+                        0x97e8_3ccc_d117_228f,
+                        0xa35b_aeca_b2dc_29ee,
+                        0x1ce3_93ea_5daa_ce4d,
+                        0x08f2_220f_b0fb_66eb,
+                    ]),
+                ),
+                c1: FqTarget::fp_constant(
+                    builder,
+                    Bls12_381Base([
+                        0xb2f6_6aad_4ce5_d646,
+                        0x5842_a06b_fc49_7cec,
+                        0xcf48_95d4_2599_d394,
+                        0xc11b_9cba_40a8_e8d0,
+                        0x2e38_13cb_e5a0_de89,
+                        0x110e_efda_8884_7faf,
+                    ]),
+                ),
+            },
+            c1: Fq2Target::zero(builder),
+            c2: Fq2Target::zero(builder),
+        };
+        let c1 = c1.mul(builder, &temp);
+
+        Self { c0, c1 }
     }
 
     pub fn mul(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> Self {
@@ -84,7 +150,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
     ) -> Self {
         let aa = self.c0.mul_by_01(builder, c0, c1);
         let bb = self.c1.mul_by_1(builder, c4);
-        let o = c1.add(builder, c4.clone());
+        let o = c1.add(builder, c4);
         let c1 = self.c1.add(builder, self.c0.clone());
         let c1 = c1.mul_by_01(builder, c0, &o);
         let c1 = c1.sub(builder, aa.clone());
@@ -94,6 +160,34 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         let c0 = c0.add(builder, aa);
 
         Self { c0, c1 }
+    }
+
+    pub fn is_equal(
+        &self,
+        builder: &mut CircuitBuilder<F, D>,
+        rhs: &Self,
+    ) -> (
+        (
+            (BoolTarget, BoolTarget),
+            (BoolTarget, BoolTarget),
+            (BoolTarget, BoolTarget),
+        ),
+        (
+            (BoolTarget, BoolTarget),
+            (BoolTarget, BoolTarget),
+            (BoolTarget, BoolTarget),
+        ),
+    ) {
+        let self_c0 = &self.c0;
+        let self_c1 = &self.c1;
+
+        let rhs_c0 = &rhs.c0;
+        let rhs_c1 = &rhs.c1;
+
+        let r_c0 = self_c0.is_equal(builder, rhs_c0);
+        let r_c1 = self_c1.is_equal(builder, rhs_c1);
+
+        (r_c0, r_c1)
     }
 
     pub fn connect(builder: &mut CircuitBuilder<F, D>, lhs: &Self, rhs: &Self) {
