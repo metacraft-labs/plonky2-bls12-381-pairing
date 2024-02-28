@@ -1,5 +1,4 @@
 use ark_bls12_381::Fq;
-use num::BigInt;
 use num::{One, Zero};
 use plonky2::{
     field::extension::Extendable,

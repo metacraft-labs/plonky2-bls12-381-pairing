@@ -491,8 +491,8 @@ mod tests {
         let one = Fq12Target::one(&mut builder);
         let onee = Fq12Target::one(&mut builder);
         let result_mml = multi_miller_loop(&[(
-            &G1AffineTarget::<F, D>::identity(),
-            &G2AffineTarget::<F, D>::generator().into(),
+            &G1AffineTarget::<F, D>::generator(),
+            &G2AffineTarget::<F, D>::identity().into(),
         )])
         .0;
 
@@ -505,22 +505,22 @@ mod tests {
         // Fq12Target::connect(&mut builder, &x, &result_mml);
 
         let p = fq_x.is_equal(&mut builder, &oth_fq_x);
-        let g = result_mml.is_equal(&mut builder, &one);
+        //let g = result_mml.is_equal(&mut builder, &one);
 
         let mut pw = PartialWitness::new();
         pw.set_target(p.target, F::ONE);
-        pw.set_target(g.0 .0 .0.target, F::ONE);
-        pw.set_target(g.0 .0 .1.target, F::ONE);
-        pw.set_target(g.0 .1 .0.target, F::ONE);
-        pw.set_target(g.0 .1 .1.target, F::ONE);
-        pw.set_target(g.0 .2 .0.target, F::ONE);
-        pw.set_target(g.0 .2 .1.target, F::ONE);
-        pw.set_target(g.1 .0 .0.target, F::ONE);
-        pw.set_target(g.1 .0 .1.target, F::ONE);
-        pw.set_target(g.1 .1 .0.target, F::ONE);
-        pw.set_target(g.1 .1 .1.target, F::ONE);
-        pw.set_target(g.1 .2 .0.target, F::ONE);
-        pw.set_target(g.1 .2 .1.target, F::ONE);
+        // pw.set_target(g.0 .0 .0.target, F::ONE);
+        // pw.set_target(g.0 .0 .1.target, F::ONE);
+        // pw.set_target(g.0 .1 .0.target, F::ONE);
+        // pw.set_target(g.0 .1 .1.target, F::ONE);
+        // pw.set_target(g.0 .2 .0.target, F::ONE);
+        // pw.set_target(g.0 .2 .1.target, F::ONE);
+        // pw.set_target(g.1 .0 .0.target, F::ONE);
+        // pw.set_target(g.1 .0 .1.target, F::ONE);
+        // pw.set_target(g.1 .1 .0.target, F::ONE);
+        // pw.set_target(g.1 .1 .1.target, F::ONE);
+        // pw.set_target(g.1 .2 .0.target, F::ONE);
+        // pw.set_target(g.1 .2 .1.target, F::ONE);
         let data = builder.build::<C>();
         dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);

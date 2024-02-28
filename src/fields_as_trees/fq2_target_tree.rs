@@ -121,11 +121,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
         }
     }
 
-    pub fn is_equal(
-        &self,
-        builder: &mut CircuitBuilder<F, D>,
-        rhs: &Self,
-    ) -> (BoolTarget, BoolTarget) {
+    pub fn is_equal(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> BoolTarget {
         let self_c0 = &self.c0;
         let self_c1 = &self.c1;
 
@@ -135,7 +131,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
         let r_c0 = self_c0.is_equal(builder, rhs_c0);
         let r_c1 = self_c1.is_equal(builder, rhs_c1);
 
-        (r_c0, r_c1)
+        builder.and(r_c0, r_c1)
     }
 
     pub fn mul_by_nonresidue(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
