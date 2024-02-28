@@ -1,4 +1,5 @@
-use ark_bls12_381::Fq;
+use ark_bls12_381::{Fq, G1Affine};
+use ark_ec::AffineRepr;
 use num::{One, Zero};
 use plonky2::{
     field::extension::Extendable,
@@ -30,6 +31,18 @@ impl<F: RichField + Extendable<D>, const D: usize> G1AffineTarget<F, D> {
             x: FqTarget::constant(&mut builder, Fq::zero()),
             y: FqTarget::constant(&mut builder, Fq::one()),
             infinity: BoolTarget::new_unsafe(builder.one()),
+        }
+    }
+
+    pub fn experimental_generator() -> Self {
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let g1_generator = G1Affine::generator();
+
+        Self {
+            x: FqTarget::constant(&mut builder, *g1_generator.x().unwrap()),
+            y: FqTarget::constant(&mut builder, *g1_generator.y().unwrap()),
+            infinity: builder._false(),
         }
     }
 

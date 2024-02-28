@@ -56,7 +56,7 @@ impl<F: RichField + Extendable<D>, const D: usize> G2AffineTarget<F, D> {
         Self {
             x: Fq2Target::zero(&mut builder),
             y: Fq2Target::one(&mut builder),
-            infinity: BoolTarget::new_unsafe(builder.one()),
+            infinity: builder._true(),
         }
     }
 

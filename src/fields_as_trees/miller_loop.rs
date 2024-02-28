@@ -527,6 +527,28 @@ mod tests {
     }
 
     #[test]
+    fn test_miller_loop_final_result() {
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let one = Fq12Target::one(&mut builder);
+        let result_mml = multi_miller_loop(&[(
+            &G1AffineTarget::<F, D>::experimental_generator(),
+            &G2AffineTarget::<F, D>::identity().into(),
+        )])
+        .0;
+
+        let x = result_mml.is_equal(&mut builder, &one);
+
+        // println!("result_mml is: {:?}", result_mml);
+        Fq12Target::connect(&mut builder, &result_mml, &one);
+        let mut pw = PartialWitness::new();
+        pw.set_target(x.target, F::ONE);
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
     fn test_miller_loop_result_default() {
         let config = CircuitConfig::pairing_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);

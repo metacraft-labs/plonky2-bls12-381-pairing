@@ -109,29 +109,22 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         }
     }
 
-    // pub fn is_equal(
-    //     &self,
-    //     builder: &mut CircuitBuilder<F, D>,
-    //     rhs: &Self,
-    // ) -> (
-    //     (BoolTarget, BoolTarget),
-    //     (BoolTarget, BoolTarget),
-    //     (BoolTarget, BoolTarget),
-    // ) {
-    //     let self_c0 = &self.c0;
-    //     let self_c1 = &self.c1;
-    //     let self_c2 = &self.c2;
+    pub fn is_equal(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> BoolTarget {
+        let self_c0 = &self.c0;
+        let self_c1 = &self.c1;
+        let self_c2 = &self.c2;
 
-    //     let rhs_c0 = &rhs.c0;
-    //     let rhs_c1 = &rhs.c1;
-    //     let rhs_c2 = &rhs.c2;
+        let rhs_c0 = &rhs.c0;
+        let rhs_c1 = &rhs.c1;
+        let rhs_c2 = &rhs.c2;
 
-    //     let r_c0 = self_c0.is_equal(builder, rhs_c0);
-    //     let r_c1 = self_c1.is_equal(builder, rhs_c1);
-    //     let r_c2 = self_c2.is_equal(builder, rhs_c2);
+        let r_c0 = self_c0.is_equal(builder, rhs_c0);
+        let r_c1 = self_c1.is_equal(builder, rhs_c1);
+        let r_c2 = self_c2.is_equal(builder, rhs_c2);
 
-    //     (r_c0, r_c1, r_c2)
-    // }
+        let temp = builder.and(r_c0, r_c1);
+        builder.and(temp, r_c2)
+    }
 
     pub fn frobenius_map(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
         let c0 = self.c0.frobenius_map(builder);
