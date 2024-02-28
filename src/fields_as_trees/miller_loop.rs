@@ -125,17 +125,56 @@ impl<F: RichField + Extendable<D>, const D: usize> MillerLoopResult<F, D> {
         tmp.conjugate(builder)
     }
 
+    pub fn f_conversion(
+        builder: &mut CircuitBuilder<F, D>,
+        mut t0: Fq12Target<F, D>,
+        mut t1: Fq12Target<F, D>,
+    ) -> Fq12Target<F, D> {
+        let mut t2 = t0.mul(builder, &t1);
+        t1 = t2.clone();
+        t2 = t2.frobenius_map(builder).frobenius_map(builder);
+        t2 = t2.mul(builder, &t1);
+        t1 = Self::cyclotomic_square(builder, t2.clone()).conjugate(builder);
+        let mut t3 = Self::cycolotomic_exp(builder, t2.clone());
+        let mut t4 = Self::cyclotomic_square(builder, t3.clone());
+        let mut t5 = t1.mul(builder, &t3);
+        t1 = Self::cycolotomic_exp(builder, t5.clone());
+        t0 = Self::cycolotomic_exp(builder, t1.clone());
+        let mut t6 = Self::cycolotomic_exp(builder, t0.clone());
+        t6 = t6.mul(builder, &t4);
+        t4 = Self::cycolotomic_exp(builder, t6.clone());
+        t5 = t5.conjugate(builder);
+        let xx = t5.mul(builder, &t2);
+        t4 = t4.mul(builder, &xx);
+        t5 = t2.conjugate(builder);
+        t1 = t1.mul(builder, &t2);
+        t1 = t1
+            .frobenius_map(builder)
+            .frobenius_map(builder)
+            .frobenius_map(builder);
+        t6 = t6.mul(builder, &t5);
+        t6 = t6.frobenius_map(builder);
+        t3 = t3.mul(builder, &t0);
+        t3 = t3.frobenius_map(builder).frobenius_map(builder);
+        t3 = t3.mul(builder, &t1);
+        t3 = t3.mul(builder, &t6);
+        let f = t3.mul(builder, &t4);
+
+        f
+    }
+
     pub fn final_exponentiation(&self, builder: &mut CircuitBuilder<F, D>) -> Gt<F, D> {
-        let mut f = &self.0;
-        let mut t0 = f
+        let f = &self.0;
+        let t0 = f
             .frobenius_map(builder)
             .frobenius_map(builder)
             .frobenius_map(builder)
             .frobenius_map(builder)
             .frobenius_map(builder)
             .frobenius_map(builder);
+        let f_inverted = f.inv(builder);
 
-        Gt(f)
+        Gt(Self::f_conversion(builder, t0, f_inverted))
     }
 }
 

@@ -56,6 +56,38 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         }
     }
 
+    pub fn inv(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let c0 = self.c1.mul(builder, &self.c2);
+        let c0 = c0.mul_by_nonresidue(builder);
+        let temp = self.c0.square(builder);
+        let c0 = temp.sub(builder, &c0);
+
+        let c1 = self.c2.square(builder);
+        let c1 = c1.mul_by_nonresidue(builder);
+        let temp = self.c0.mul(builder, &self.c1);
+        let c1 = c1.sub(builder, &temp);
+
+        let c2 = self.c1.square(builder);
+        let temp = self.c0.mul(builder, &self.c2);
+        let c2 = c2.sub(builder, &temp);
+
+        let temp = self.c1.mul(builder, &c2);
+        let tmp = temp;
+        let temp = self.c2.mul(builder, &c1);
+        let tmp = tmp.add(builder, &temp);
+        let tmp = tmp.mul_by_nonresidue(builder);
+        let temp = self.c0.mul(builder, &c0);
+        let tmp = tmp.add(builder, &temp);
+
+        let inverted = tmp.inv(builder);
+
+        Self {
+            c0: c0.mul(builder, &inverted),
+            c1: c1.mul(builder, &inverted),
+            c2: c2.mul(builder, &inverted),
+        }
+    }
+
     pub fn select(
         builder: &mut CircuitBuilder<F, D>,
         lhs: &Self,
@@ -279,6 +311,8 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
 
 #[cfg(test)]
 mod tests {
+    use ark_bls12_381::Fq6;
+    use ark_ff::{Field, UniformRand};
     use plonky2::{
         field::goldilocks_field::GoldilocksField,
         iop::witness::PartialWitness,
@@ -298,6 +332,68 @@ mod tests {
     type F = GoldilocksField;
     type C = PoseidonGoldilocksConfig;
     const D: usize = 2;
+
+    #[test]
+    fn test_fq6_mul_circuit() {
+        let rng = &mut rand::thread_rng();
+        let a = Fq6::rand(rng);
+        let b = Fq6::rand(rng);
+        let c_expected = a * b;
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let a = Fq6Target {
+            c0: Fq2Target {
+                c0: FqTarget::constant(&mut builder, a.c0.c0),
+                c1: FqTarget::constant(&mut builder, a.c0.c1),
+            },
+            c1: Fq2Target {
+                c0: FqTarget::constant(&mut builder, a.c1.c0),
+                c1: FqTarget::constant(&mut builder, a.c1.c1),
+            },
+            c2: Fq2Target {
+                c0: FqTarget::constant(&mut builder, a.c2.c0),
+                c1: FqTarget::constant(&mut builder, a.c2.c1),
+            },
+        };
+        let b = Fq6Target {
+            c0: Fq2Target {
+                c0: FqTarget::constant(&mut builder, b.c0.c0),
+                c1: FqTarget::constant(&mut builder, b.c0.c1),
+            },
+            c1: Fq2Target {
+                c0: FqTarget::constant(&mut builder, b.c1.c0),
+                c1: FqTarget::constant(&mut builder, b.c1.c1),
+            },
+            c2: Fq2Target {
+                c0: FqTarget::constant(&mut builder, b.c2.c0),
+                c1: FqTarget::constant(&mut builder, b.c2.c1),
+            },
+        };
+
+        let c_t = a.mul(&mut builder, &b);
+        let c_expected_t = Fq6Target {
+            c0: Fq2Target {
+                c0: FqTarget::constant(&mut builder, c_expected.c0.c0),
+                c1: FqTarget::constant(&mut builder, c_expected.c0.c1),
+            },
+            c1: Fq2Target {
+                c0: FqTarget::constant(&mut builder, c_expected.c1.c0),
+                c1: FqTarget::constant(&mut builder, c_expected.c1.c1),
+            },
+            c2: Fq2Target {
+                c0: FqTarget::constant(&mut builder, c_expected.c2.c0),
+                c1: FqTarget::constant(&mut builder, c_expected.c2.c1),
+            },
+        };
+
+        Fq6Target::connect(&mut builder, &c_expected_t, &c_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
 
     #[test]
     fn test_fq6_arithmetic() {
@@ -550,6 +646,52 @@ mod tests {
         let c_c_a_plus_c_c_b = c_mul_c_mul_a.add(&mut builder, c_mul_c_mul_b);
 
         Fq6Target::connect(&mut builder, &c_c_a_plus_c_c_b, &a_plus_b_mul_c_squared);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_fq6_inversion_circuit() {
+        let rng = &mut rand::thread_rng();
+        let x: Fq6 = Fq6::rand(rng);
+        let inv_x_expected = x.inverse().unwrap();
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let x_t = Fq6Target {
+            c0: Fq2Target {
+                c0: FqTarget::constant(&mut builder, x.c0.c0),
+                c1: FqTarget::constant(&mut builder, x.c0.c1),
+            },
+            c1: Fq2Target {
+                c0: FqTarget::constant(&mut builder, x.c1.c0),
+                c1: FqTarget::constant(&mut builder, x.c1.c1),
+            },
+            c2: Fq2Target {
+                c0: FqTarget::constant(&mut builder, x.c2.c0),
+                c1: FqTarget::constant(&mut builder, x.c2.c1),
+            },
+        };
+        let inv_x_t = x_t.inv(&mut builder);
+        let inv_x_expected_t = Fq6Target {
+            c0: Fq2Target {
+                c0: FqTarget::constant(&mut builder, inv_x_expected.c0.c0),
+                c1: FqTarget::constant(&mut builder, inv_x_expected.c0.c1),
+            },
+            c1: Fq2Target {
+                c0: FqTarget::constant(&mut builder, inv_x_expected.c1.c0),
+                c1: FqTarget::constant(&mut builder, inv_x_expected.c1.c1),
+            },
+            c2: Fq2Target {
+                c0: FqTarget::constant(&mut builder, inv_x_expected.c2.c0),
+                c1: FqTarget::constant(&mut builder, inv_x_expected.c2.c1),
+            },
+        };
+
+        Fq6Target::connect(&mut builder, &inv_x_t, &inv_x_expected_t);
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();

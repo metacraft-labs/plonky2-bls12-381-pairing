@@ -50,6 +50,33 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
         }
     }
 
+    // Derived https://github.com/onurinanc/noir-bls-signature/blob/a3d19b69b4cd8698afd8f3ad8ca2a77495c58c0e/src/bls12_381/fp2.nr#L122
+    pub fn invert(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let t0 = self.c0.mul(builder, &self.c0);
+        let t1 = self.c1.mul(builder, &self.c1);
+        let t0 = t0.add(builder, &t1);
+        let t1 = t0.inv(builder);
+        let c0 = t1.mul(builder, &self.c0);
+        let c1 = self.c1.mul(builder, &t1);
+        let c1 = c1.neg(builder);
+
+        Self { c0, c1 }
+    }
+
+    pub fn inv(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let c0_squared = self.c0.mul(builder, &self.c0);
+        let c1_squared = self.c1.mul(builder, &self.c1);
+
+        let inverted = &c0_squared.add(builder, &c1_squared);
+        let inverted = inverted.inv(builder);
+        let neg_inverted = inverted.neg(builder);
+
+        Self {
+            c0: self.c0.mul(builder, &inverted),
+            c1: self.c1.mul(builder, &neg_inverted),
+        }
+    }
+
     pub fn square(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
         let c0 = &self.c0;
         let c1 = &self.c1;
@@ -143,6 +170,8 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
 
 #[cfg(test)]
 mod tests {
+    use ark_bls12_381::Fq2;
+    use ark_ff::{Field, UniformRand};
     use plonky2::{
         field::goldilocks_field::GoldilocksField,
         iop::witness::PartialWitness,
@@ -159,6 +188,38 @@ mod tests {
     type F = GoldilocksField;
     type C = PoseidonGoldilocksConfig;
     const D: usize = 2;
+
+    #[test]
+    fn test_multiplication() {
+        let rng = &mut rand::thread_rng();
+        let a = Fq2::rand(rng);
+        let b = Fq2::rand(rng);
+        let c_expected = a * b;
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let a = Fq2Target {
+            c0: FqTarget::constant(&mut builder, a.c0),
+            c1: FqTarget::constant(&mut builder, a.c1),
+        };
+        let b = Fq2Target {
+            c0: FqTarget::constant(&mut builder, b.c0),
+            c1: FqTarget::constant(&mut builder, b.c1),
+        };
+
+        let c_t = a.mul(&mut builder, &b);
+        let c_expected_t = Fq2Target {
+            c0: FqTarget::constant(&mut builder, c_expected.c0),
+            c1: FqTarget::constant(&mut builder, c_expected.c1),
+        };
+
+        Fq2Target::connect(&mut builder, &c_expected_t, &c_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
 
     #[test]
     fn test_addition() {
@@ -242,6 +303,32 @@ mod tests {
 
         let a_plus_b = a.add(&mut builder, &b);
         Fq2Target::connect(&mut builder, &c, &a_plus_b);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_inversion() {
+        let rng = &mut rand::thread_rng();
+        let x: Fq2 = Fq2::rand(rng);
+        let inv_x_expected = x.inverse().unwrap();
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let x_t = Fq2Target {
+            c0: FqTarget::constant(&mut builder, x.c0),
+            c1: FqTarget::constant(&mut builder, x.c1),
+        };
+        let inv_x_t = x_t.inv(&mut builder);
+        let inv_x_expected_t = Fq2Target {
+            c0: FqTarget::constant(&mut builder, inv_x_expected.c0),
+            c1: FqTarget::constant(&mut builder, inv_x_expected.c1),
+        };
+
+        Fq2Target::connect(&mut builder, &inv_x_t, &inv_x_expected_t);
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();

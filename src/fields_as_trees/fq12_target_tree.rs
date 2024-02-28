@@ -74,7 +74,20 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         }
     }
 
-    pub fn invert(&self, builder: &mut CircuitBuilder<F, D>) -> Option<Self> {}
+    pub fn inv(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let c0_squared = self.c0.square(builder);
+        let c1_squared = self.c1.square(builder);
+        let c1_squared = c1_squared.mul_by_nonresidue(builder);
+
+        let invert = c0_squared.sub(builder, c1_squared);
+        let inverted = invert.inv(builder);
+        let neg_inverted = inverted.neg(builder);
+
+        Self {
+            c0: self.c0.mul(builder, &inverted),
+            c1: self.c1.mul(builder, &neg_inverted),
+        }
+    }
 
     pub fn frobenius_map(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
         let c0 = self.c0.frobenius_map(builder);
@@ -208,6 +221,8 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
 
 #[cfg(test)]
 mod tests {
+    use ark_bls12_381::Fq12;
+    use ark_ff::{Field, UniformRand};
     use plonky2::{
         field::goldilocks_field::GoldilocksField,
         iop::witness::PartialWitness,
@@ -227,6 +242,222 @@ mod tests {
     type F = GoldilocksField;
     type C = PoseidonGoldilocksConfig;
     const D: usize = 2;
+
+    #[test]
+    fn test_fq12_add_circuit() {
+        let rng = &mut rand::thread_rng();
+        let a = Fq12::rand(rng);
+        let b = Fq12::rand(rng);
+        let c_expected = a + b;
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let a_t = Fq12Target {
+            c0: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, a.c0.c0.c0),
+                    c1: FqTarget::constant(&mut builder, a.c0.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, a.c0.c1.c0),
+                    c1: FqTarget::constant(&mut builder, a.c0.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, a.c0.c2.c0),
+                    c1: FqTarget::constant(&mut builder, a.c0.c2.c1),
+                },
+            },
+            c1: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, a.c1.c0.c0),
+                    c1: FqTarget::constant(&mut builder, a.c1.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, a.c1.c1.c0),
+                    c1: FqTarget::constant(&mut builder, a.c1.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, a.c1.c2.c0),
+                    c1: FqTarget::constant(&mut builder, a.c1.c2.c1),
+                },
+            },
+        };
+        let b_t = Fq12Target {
+            c0: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, b.c0.c0.c0),
+                    c1: FqTarget::constant(&mut builder, b.c0.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, b.c0.c1.c0),
+                    c1: FqTarget::constant(&mut builder, b.c0.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, b.c0.c2.c0),
+                    c1: FqTarget::constant(&mut builder, b.c0.c2.c1),
+                },
+            },
+            c1: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, b.c1.c0.c0),
+                    c1: FqTarget::constant(&mut builder, b.c1.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, b.c1.c1.c0),
+                    c1: FqTarget::constant(&mut builder, b.c1.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, b.c1.c2.c0),
+                    c1: FqTarget::constant(&mut builder, b.c1.c2.c1),
+                },
+            },
+        };
+        let c_t = a_t.add(&mut builder, b_t);
+        let c_expected_t = Fq12Target {
+            c0: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, c_expected.c0.c0.c0),
+                    c1: FqTarget::constant(&mut builder, c_expected.c0.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, c_expected.c0.c1.c0),
+                    c1: FqTarget::constant(&mut builder, c_expected.c0.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, c_expected.c0.c2.c0),
+                    c1: FqTarget::constant(&mut builder, c_expected.c0.c2.c1),
+                },
+            },
+            c1: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, c_expected.c1.c0.c0),
+                    c1: FqTarget::constant(&mut builder, c_expected.c1.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, c_expected.c1.c1.c0),
+                    c1: FqTarget::constant(&mut builder, c_expected.c1.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, c_expected.c1.c2.c0),
+                    c1: FqTarget::constant(&mut builder, c_expected.c1.c2.c1),
+                },
+            },
+        };
+
+        Fq12Target::connect(&mut builder, &c_expected_t, &c_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_fq12_mul_circuit_() {
+        let rng = &mut rand::thread_rng();
+        let a = Fq12::rand(rng);
+        let b = Fq12::rand(rng);
+        let c_expected = a * b;
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let a_t = Fq12Target {
+            c0: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, a.c0.c0.c0),
+                    c1: FqTarget::constant(&mut builder, a.c0.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, a.c0.c1.c0),
+                    c1: FqTarget::constant(&mut builder, a.c0.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, a.c0.c2.c0),
+                    c1: FqTarget::constant(&mut builder, a.c0.c2.c1),
+                },
+            },
+            c1: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, a.c1.c0.c0),
+                    c1: FqTarget::constant(&mut builder, a.c1.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, a.c1.c1.c0),
+                    c1: FqTarget::constant(&mut builder, a.c1.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, a.c1.c2.c0),
+                    c1: FqTarget::constant(&mut builder, a.c1.c2.c1),
+                },
+            },
+        };
+        let b_t = Fq12Target {
+            c0: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, b.c0.c0.c0),
+                    c1: FqTarget::constant(&mut builder, b.c0.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, b.c0.c1.c0),
+                    c1: FqTarget::constant(&mut builder, b.c0.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, b.c0.c2.c0),
+                    c1: FqTarget::constant(&mut builder, b.c0.c2.c1),
+                },
+            },
+            c1: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, b.c1.c0.c0),
+                    c1: FqTarget::constant(&mut builder, b.c1.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, b.c1.c1.c0),
+                    c1: FqTarget::constant(&mut builder, b.c1.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, b.c1.c2.c0),
+                    c1: FqTarget::constant(&mut builder, b.c1.c2.c1),
+                },
+            },
+        };
+        let c_t = a_t.mul(&mut builder, &b_t);
+        let c_expected_t = Fq12Target {
+            c0: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, c_expected.c0.c0.c0),
+                    c1: FqTarget::constant(&mut builder, c_expected.c0.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, c_expected.c0.c1.c0),
+                    c1: FqTarget::constant(&mut builder, c_expected.c0.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, c_expected.c0.c2.c0),
+                    c1: FqTarget::constant(&mut builder, c_expected.c0.c2.c1),
+                },
+            },
+            c1: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, c_expected.c1.c0.c0),
+                    c1: FqTarget::constant(&mut builder, c_expected.c1.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, c_expected.c1.c1.c0),
+                    c1: FqTarget::constant(&mut builder, c_expected.c1.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, c_expected.c1.c2.c0),
+                    c1: FqTarget::constant(&mut builder, c_expected.c1.c2.c1),
+                },
+            },
+        };
+
+        Fq12Target::connect(&mut builder, &c_expected_t, &c_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        let _proof = data.prove(pw);
+    }
 
     #[test]
     fn test_fq12_arithmetic() {
@@ -718,6 +949,84 @@ mod tests {
         let c_c_a_plus_c_c_b = c_mul_c_mul_a.add(&mut builder, c_mul_c_mul_b);
 
         Fq12Target::connect(&mut builder, &c_c_a_plus_c_c_b, &a_plus_b_mul_c_squared);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_fq12_inversion_circuit() {
+        let rng = &mut rand::thread_rng();
+        let x: Fq12 = Fq12::rand(rng);
+        let inv_x_expected = x.inverse().unwrap();
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let x_t = Fq12Target {
+            c0: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, x.c0.c0.c0),
+                    c1: FqTarget::constant(&mut builder, x.c0.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, x.c0.c1.c0),
+                    c1: FqTarget::constant(&mut builder, x.c0.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, x.c0.c2.c0),
+                    c1: FqTarget::constant(&mut builder, x.c0.c2.c1),
+                },
+            },
+            c1: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, x.c1.c0.c0),
+                    c1: FqTarget::constant(&mut builder, x.c1.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, x.c1.c1.c0),
+                    c1: FqTarget::constant(&mut builder, x.c1.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, x.c1.c2.c0),
+                    c1: FqTarget::constant(&mut builder, x.c1.c2.c1),
+                },
+            },
+        };
+        let inv_x_t = x_t.inv(&mut builder);
+        let inv_x_expected_t = Fq12Target {
+            c0: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, inv_x_expected.c0.c0.c0),
+                    c1: FqTarget::constant(&mut builder, inv_x_expected.c0.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, inv_x_expected.c0.c1.c0),
+                    c1: FqTarget::constant(&mut builder, inv_x_expected.c0.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, inv_x_expected.c0.c2.c0),
+                    c1: FqTarget::constant(&mut builder, inv_x_expected.c0.c2.c1),
+                },
+            },
+            c1: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, inv_x_expected.c1.c0.c0),
+                    c1: FqTarget::constant(&mut builder, inv_x_expected.c1.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, inv_x_expected.c1.c1.c0),
+                    c1: FqTarget::constant(&mut builder, inv_x_expected.c1.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, inv_x_expected.c1.c2.c0),
+                    c1: FqTarget::constant(&mut builder, inv_x_expected.c1.c2.c1),
+                },
+            },
+        };
+
+        Fq12Target::connect(&mut builder, &inv_x_t, &inv_x_expected_t);
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
