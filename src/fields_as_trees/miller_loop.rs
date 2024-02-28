@@ -456,9 +456,46 @@ fn ell<F: RichField + Extendable<D>, const D: usize>(
     f.mul_by_014(builder, &coeffs.2, &c1, &c0)
 }
 
+pub fn pairing<F: RichField + Extendable<D>, const D: usize>(
+    p: &G1AffineTarget<F, D>,
+    q: G2AffineTarget<F, D>,
+) {
+    struct Adder<A: RichField + Extendable<B>, const B: usize> {
+        cur: G2ProjectiveTarget<A, B>,
+        base: G2AffineTarget<A, B>,
+        p: G1AffineTarget<A, B>,
+    }
+
+    impl<A, B> MillerLoopDriver for Adder<A, B> {
+        type Output = Fq12Target<A, B>;
+
+        fn point_doubling_and_line_evaluation(&mut self, f: Self::Output) -> Self::Output {
+            todo!()
+        }
+
+        fn point_addition_and_line_evaluation(&mut self, f: Self::Output) -> Self::Output {
+            todo!()
+        }
+
+        fn square_output(f: Self::Output) -> Self::Output {
+            todo!()
+        }
+
+        fn conjugate(f: Self::Output) -> Self::Output {
+            todo!()
+        }
+
+        fn one() -> Self::Output {
+            todo!()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::Fq;
+    use ark_bls12_381::{Fq, G1Affine, G2Affine};
+    use ark_ec::pairing::Pairing;
+    use ark_ff::UniformRand;
     use plonky2::{
         field::{goldilocks_field::GoldilocksField, types::Field},
         iop::witness::{PartialWitness, WitnessWrite},
