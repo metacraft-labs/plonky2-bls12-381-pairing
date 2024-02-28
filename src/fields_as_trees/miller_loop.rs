@@ -458,7 +458,7 @@ fn ell<F: RichField + Extendable<D>, const D: usize>(
 
 pub fn pairing<F: RichField + Extendable<D>, const D: usize>(
     p: &G1AffineTarget<F, D>,
-    q: G2AffineTarget<F, D>,
+    q: &G2AffineTarget<F, D>,
 ) {
     struct Adder<A: RichField + Extendable<B>, const B: usize> {
         cur: G2ProjectiveTarget<A, B>,
@@ -470,23 +470,35 @@ pub fn pairing<F: RichField + Extendable<D>, const D: usize>(
         type Output = Fq12Target<A, B>;
 
         fn point_doubling_and_line_evaluation(&mut self, f: Self::Output) -> Self::Output {
-            todo!()
+            let config = CircuitConfig::pairing_config();
+            let mut builder = CircuitBuilder::<A, B>::new(config);
+            let coeffs = point_doubling_and_line_evaluation(builder, &mut self.cur);
+            ell(builder, f, &coeffs, &self.p)
         }
 
         fn point_addition_and_line_evaluation(&mut self, f: Self::Output) -> Self::Output {
-            todo!()
+            let config = CircuitConfig::pairing_config();
+            let mut builder = CircuitBuilder::<A, B>::new(config);
+            let coeffs = point_addition_and_line_evaluation(builder, &mut self.cur, &self.base);
+            ell(builder, f, &coeffs, &self.p)
         }
 
         fn square_output(f: Self::Output) -> Self::Output {
-            todo!()
+            let config = CircuitConfig::pairing_config();
+            let mut builder = CircuitBuilder::<A, B>::new(config);
+            f.square(&mut builder)
         }
 
         fn conjugate(f: Self::Output) -> Self::Output {
-            todo!()
+            let config = CircuitConfig::pairing_config();
+            let mut builder = CircuitBuilder::<A, B>::new(config);
+            f.conjugate(&mut builder)
         }
 
         fn one() -> Self::Output {
-            todo!()
+            let config = CircuitConfig::pairing_config();
+            let mut builder = CircuitBuilder::<A, B>::new(config);
+            Fq12Target::one(builder)
         }
     }
 }
