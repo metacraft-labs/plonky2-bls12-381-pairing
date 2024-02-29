@@ -18,6 +18,13 @@ use super::{
 #[derive(Clone, Debug)]
 pub struct Gt<F: RichField + Extendable<D>, const D: usize>(pub Fq12Target<F, D>);
 
+impl<F: RichField + Extendable<D>, const D: usize> Gt<F, D> {
+    // comparison
+    pub fn compare(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) {
+        Fq12Target::connect(builder, &self.0, &rhs.0)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct MillerLoopResult<F: RichField + Extendable<D>, const D: usize>(pub Fq12Target<F, D>);
 
@@ -215,8 +222,13 @@ impl<F: RichField + Extendable<D>, const D: usize> From<G2AffineTarget<F, D>>
             fn one() -> Self::Output {}
         }
 
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
         let is_identity = q.infinity;
-        let q = G2AffineTarget::conditional_select(&q, &G2AffineTarget::generator(), is_identity);
+        let g2_generator = G2AffineTarget::experimental_generator(&mut builder);
+        let q =
+            G2AffineTarget::conditional_select(&mut builder, q.clone(), g2_generator, is_identity);
         let mut adder = Adder {
             cur: G2ProjectiveTarget::from(q.clone()),
             base: q.clone(),
@@ -459,28 +471,29 @@ fn ell<F: RichField + Extendable<D>, const D: usize>(
 pub fn pairing<F: RichField + Extendable<D>, const D: usize>(
     p: &G1AffineTarget<F, D>,
     q: &G2AffineTarget<F, D>,
-) {
+) -> Gt<F, D> {
     struct Adder<A: RichField + Extendable<B>, const B: usize> {
         cur: G2ProjectiveTarget<A, B>,
         base: G2AffineTarget<A, B>,
         p: G1AffineTarget<A, B>,
     }
 
-    impl<A, B> MillerLoopDriver for Adder<A, B> {
+    impl<A: RichField + Extendable<B>, const B: usize> MillerLoopDriver for Adder<A, B> {
         type Output = Fq12Target<A, B>;
 
         fn point_doubling_and_line_evaluation(&mut self, f: Self::Output) -> Self::Output {
             let config = CircuitConfig::pairing_config();
             let mut builder = CircuitBuilder::<A, B>::new(config);
-            let coeffs = point_doubling_and_line_evaluation(builder, &mut self.cur);
-            ell(builder, f, &coeffs, &self.p)
+            let coeffs = point_doubling_and_line_evaluation(&mut builder, &mut self.cur);
+            ell(&mut builder, f, &coeffs, &self.p)
         }
 
         fn point_addition_and_line_evaluation(&mut self, f: Self::Output) -> Self::Output {
             let config = CircuitConfig::pairing_config();
             let mut builder = CircuitBuilder::<A, B>::new(config);
-            let coeffs = point_addition_and_line_evaluation(builder, &mut self.cur, &self.base);
-            ell(builder, f, &coeffs, &self.p)
+            let coeffs =
+                point_addition_and_line_evaluation(&mut builder, &mut self.cur, &self.base);
+            ell(&mut builder, f, &coeffs, &self.p)
         }
 
         fn square_output(f: Self::Output) -> Self::Output {
@@ -498,9 +511,38 @@ pub fn pairing<F: RichField + Extendable<D>, const D: usize>(
         fn one() -> Self::Output {
             let config = CircuitConfig::pairing_config();
             let mut builder = CircuitBuilder::<A, B>::new(config);
-            Fq12Target::one(builder)
+            Fq12Target::one(&mut builder)
         }
     }
+
+    let config = CircuitConfig::pairing_config();
+    let mut builder = CircuitBuilder::<F, D>::new(config);
+    let either_identity = builder.or(p.is_identity(), q.infinity);
+
+    let g1_generator = G1AffineTarget::experimental_generator(&mut builder);
+    let p =
+        G1AffineTarget::conditional_select(&mut builder, p.clone(), g1_generator, either_identity);
+
+    let g2_generator = G2AffineTarget::experimental_generator(&mut builder);
+    let q =
+        G2AffineTarget::conditional_select(&mut builder, q.clone(), g2_generator, either_identity);
+
+    let mut adder = Adder {
+        cur: G2ProjectiveTarget::from(q.clone()),
+        base: q,
+        p,
+    };
+
+    let tmp = miller_loop::<F, D, _>(&mut adder);
+
+    let one = Fq12Target::one(&mut builder);
+    let tmp = MillerLoopResult(Fq12Target::select(
+        &mut builder,
+        &tmp,
+        &one,
+        &either_identity,
+    ));
+    tmp.final_exponentiation(&mut builder)
 }
 
 #[cfg(test)]
@@ -528,9 +570,28 @@ mod tests {
     };
     use num::One;
 
+    use super::pairing;
+
     type F = GoldilocksField;
     type C = PoseidonGoldilocksConfig;
     const D: usize = 2;
+
+    #[test]
+    fn test_gt_generator() {
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let g: G1AffineTarget<F, D> = G1AffineTarget::experimental_generator(&mut builder);
+        let h: G2AffineTarget<F, D> = G2AffineTarget::experimental_generator(&mut builder);
+        let q = pairing(&g, &h.neg(&mut builder));
+        let r = pairing(&g.neg(&mut builder), &h);
+
+        // Compare pairings // aka Gt (points ?)
+        q.compare(&mut builder, &r);
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
 
     #[test]
     fn test_miller_loop() {
@@ -541,7 +602,7 @@ mod tests {
         let onee = Fq12Target::one(&mut builder);
         let result_mml = multi_miller_loop(&[(
             &G1AffineTarget::<F, D>::generator(),
-            &G2AffineTarget::<F, D>::identity().into(),
+            &G2AffineTarget::<F, D>::identity(&mut builder).into(),
         )])
         .0;
 
@@ -581,8 +642,8 @@ mod tests {
         let mut builder = CircuitBuilder::<F, D>::new(config);
         let one = Fq12Target::one(&mut builder);
         let result_mml = multi_miller_loop(&[(
-            &G1AffineTarget::<F, D>::experimental_generator(),
-            &G2AffineTarget::<F, D>::identity().into(),
+            &G1AffineTarget::<F, D>::experimental_generator(&mut builder),
+            &G2AffineTarget::<F, D>::identity(&mut builder).into(),
         )])
         .0;
 

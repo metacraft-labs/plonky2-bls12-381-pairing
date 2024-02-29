@@ -1,3 +1,5 @@
+use ark_bls12_381::G2Affine;
+use ark_ec::AffineRepr;
 use plonky2::{
     field::extension::Extendable,
     hash::hash_types::RichField,
@@ -26,12 +28,12 @@ pub struct G2AffineTarget<F: RichField + Extendable<D>, const D: usize> {
 impl<'a, F: RichField + Extendable<D>, const D: usize> From<&'a G2AffineTarget<F, D>>
     for G2ProjectiveTarget<F, D>
 {
-    fn from(p: &'a G2AffineTarget<F, D>) -> G2ProjectiveTarget<F, D> {
+    fn from(p: &'a G2AffineTarget<F, D>) -> Self {
         let config = CircuitConfig::pairing_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
         let zero = Fq2Target::zero(&mut builder);
         let one = Fq2Target::one(&mut builder);
-        G2ProjectiveTarget {
+        Self {
             x: p.x.clone(),
             y: p.y.clone(),
             z: Fq2Target::select(&mut builder, &one, &zero, &p.infinity),
@@ -42,21 +44,36 @@ impl<'a, F: RichField + Extendable<D>, const D: usize> From<&'a G2AffineTarget<F
 impl<F: RichField + Extendable<D>, const D: usize> From<G2AffineTarget<F, D>>
     for G2ProjectiveTarget<F, D>
 {
-    fn from(p: G2AffineTarget<F, D>) -> G2ProjectiveTarget<F, D> {
-        G2ProjectiveTarget::from(&p)
+    fn from(p: G2AffineTarget<F, D>) -> Self {
+        Self::from(&p)
     }
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> G2AffineTarget<F, D> {
-    /// Returns the identity of the group: the point at infinity.
-    pub fn identity() -> Self {
-        let config = CircuitConfig::pairing_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
+    pub fn is_identity(&self) -> BoolTarget {
+        self.infinity
+    }
 
+    /// Returns the identity of the group: the point at infinity.
+    pub fn identity(builder: &mut CircuitBuilder<F, D>) -> Self {
         Self {
-            x: Fq2Target::zero(&mut builder),
-            y: Fq2Target::one(&mut builder),
+            x: Fq2Target::zero(builder),
+            y: Fq2Target::one(builder),
             infinity: builder._true(),
+        }
+    }
+
+    pub fn experimental_generator(builder: &mut CircuitBuilder<F, D>) -> Self {
+        Self {
+            x: Fq2Target {
+                c0: FqTarget::constant(builder, G2Affine::generator().x().unwrap().c0),
+                c1: FqTarget::constant(builder, G2Affine::generator().x().unwrap().c1),
+            },
+            y: Fq2Target {
+                c0: FqTarget::constant(builder, G2Affine::generator().y().unwrap().c0),
+                c1: FqTarget::constant(builder, G2Affine::generator().y().unwrap().c1),
+            },
+            infinity: builder._false(),
         }
     }
 
@@ -116,12 +133,15 @@ impl<F: RichField + Extendable<D>, const D: usize> G2AffineTarget<F, D> {
         }
     }
 
-    pub fn conditional_select(a: &Self, b: &Self, flag: BoolTarget) -> Self {
-        let config = CircuitConfig::pairing_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
+    pub fn conditional_select(
+        builder: &mut CircuitBuilder<F, D>,
+        a: Self,
+        b: Self,
+        flag: BoolTarget,
+    ) -> Self {
         Self {
-            x: Fq2Target::select(&mut builder, &a.x, &b.x, &flag),
-            y: Fq2Target::select(&mut builder, &a.y, &b.y, &flag),
+            x: Fq2Target::select(builder, &a.x, &b.x, &flag),
+            y: Fq2Target::select(builder, &a.y, &b.y, &flag),
             infinity: builder.or(a.infinity, b.infinity),
         }
     }
@@ -143,6 +163,16 @@ impl<F: RichField + Extendable<D>, const D: usize> G2AffineTarget<F, D> {
         let second_pred = builder.and(x_y_are_eq, inf_not_set_on_both);
 
         builder.or(inf_set_on_both, second_pred)
+    }
+
+    pub fn neg(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let one = Fq2Target::one(builder);
+        let y_neg = self.y.neg(builder);
+        Self {
+            x: self.x.clone(),
+            y: Fq2Target::select(builder, &y_neg, &one, &self.infinity),
+            infinity: self.infinity,
+        }
     }
 }
 

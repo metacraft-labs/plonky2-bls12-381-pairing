@@ -24,24 +24,18 @@ impl<F: RichField + Extendable<D>, const D: usize> G1AffineTarget<F, D> {
     }
 
     /// Returns the identity of the group: the point at infinity.
-    pub fn identity() -> Self {
-        let config = CircuitConfig::pairing_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
+    pub fn identity(builder: &mut CircuitBuilder<F, D>) -> Self {
         Self {
-            x: FqTarget::constant(&mut builder, Fq::zero()),
-            y: FqTarget::constant(&mut builder, Fq::one()),
-            infinity: BoolTarget::new_unsafe(builder.one()),
+            x: FqTarget::constant(builder, Fq::zero()),
+            y: FqTarget::constant(builder, Fq::one()),
+            infinity: builder._true(),
         }
     }
 
-    pub fn experimental_generator() -> Self {
-        let config = CircuitConfig::pairing_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-        let g1_generator = G1Affine::generator();
-
+    pub fn experimental_generator(builder: &mut CircuitBuilder<F, D>) -> Self {
         Self {
-            x: FqTarget::constant(&mut builder, *g1_generator.x().unwrap()),
-            y: FqTarget::constant(&mut builder, *g1_generator.y().unwrap()),
+            x: FqTarget::constant(builder, *G1Affine::generator().x().unwrap()),
+            y: FqTarget::constant(builder, *G1Affine::generator().y().unwrap()),
             infinity: builder._false(),
         }
     }
@@ -93,6 +87,29 @@ impl<F: RichField + Extendable<D>, const D: usize> G1AffineTarget<F, D> {
         let second_pred = builder.and(x_y_are_eq, inf_not_set_on_both);
 
         builder.or(inf_set_on_both, second_pred)
+    }
+
+    pub fn conditional_select(
+        builder: &mut CircuitBuilder<F, D>,
+        a: Self,
+        b: Self,
+        flag: BoolTarget,
+    ) -> Self {
+        Self {
+            x: FqTarget::select(builder, &a.x, &b.x, &flag),
+            y: FqTarget::select(builder, &a.y, &b.y, &flag),
+            infinity: builder.or(a.infinity, b.infinity),
+        }
+    }
+
+    pub fn neg(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let one = FqTarget::constant(builder, Fq::one());
+        let y_neg = self.y.neg(builder);
+        Self {
+            x: self.x.clone(),
+            y: FqTarget::select(builder, &y_neg, &one, &self.infinity),
+            infinity: self.infinity,
+        }
     }
 }
 

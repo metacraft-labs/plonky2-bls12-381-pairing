@@ -16,10 +16,9 @@ pub struct Fq2Target<F: RichField + Extendable<D>, const D: usize> {
 
 impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
     pub fn zero(builder: &mut CircuitBuilder<F, D>) -> Self {
-        let zero = FqTarget::constant(builder, Fq::zero());
         Self {
-            c0: zero.clone(),
-            c1: zero,
+            c0: FqTarget::constant(builder, Fq::zero()),
+            c1: FqTarget::constant(builder, Fq::zero()),
         }
     }
 
