@@ -136,45 +136,44 @@ mod tests {
     fn test_g1affine_point_equality() {
         let config = CircuitConfig::pairing_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
-        let rand_gen = G1Affine::generator();
-        let _rand_iden = G1Affine::identity();
+        let g1_affine_generator = G1AffineTarget::experimental_generator(&mut builder);
 
         let const_one = FqTarget::constant(&mut builder, Fq::from(1));
-        let rand_gen_x = FqTarget::constant(&mut builder, *rand_gen.x().unwrap());
-        let rand_gen_x_1 = rand_gen_x.add(&mut builder, &const_one);
-        let rand_gen_y = FqTarget::constant(&mut builder, *rand_gen.y().unwrap());
-        let rand_gen_y_1 = rand_gen_y.add(&mut builder, &const_one);
+        let g1_affine_x = g1_affine_generator.x;
+        let g1_affine_x_1 = g1_affine_x.add(&mut builder, &const_one);
+        let g1_affine_y = g1_affine_generator.y;
+        let g1_affine_y_1 = g1_affine_y.add(&mut builder, &const_one);
 
         let a: G1AffineTarget<F, D> = G1AffineTarget {
-            x: rand_gen_x.clone(),
-            y: rand_gen_y.clone(),
+            x: g1_affine_x.clone(),
+            y: g1_affine_y.clone(),
             infinity: builder._false(),
         };
 
         let b: G1AffineTarget<F, D> = G1AffineTarget {
-            x: rand_gen_x,
-            y: rand_gen_y.clone(),
+            x: g1_affine_x,
+            y: g1_affine_y.clone(),
             infinity: builder._false(),
         };
         let case_1 = a.is_point_equal_to(&mut builder, &b);
 
         let b: G1AffineTarget<F, D> = G1AffineTarget {
-            x: rand_gen_x_1.clone(),
-            y: rand_gen_y_1.clone(),
+            x: g1_affine_x_1.clone(),
+            y: g1_affine_y_1.clone(),
             infinity: builder._false(),
         };
         let case_2 = a.is_point_equal_to(&mut builder, &b);
 
         let b: G1AffineTarget<F, D> = G1AffineTarget {
-            x: rand_gen_x_1.clone(),
-            y: rand_gen_y_1,
+            x: g1_affine_x_1.clone(),
+            y: g1_affine_y_1,
             infinity: builder._true(),
         };
         let case_3 = a.is_point_equal_to(&mut builder, &b);
 
         let a: G1AffineTarget<F, D> = G1AffineTarget {
-            x: rand_gen_x_1,
-            y: rand_gen_y,
+            x: g1_affine_x_1,
+            y: g1_affine_y,
             infinity: builder._true(),
         };
         let case_4 = a.is_point_equal_to(&mut builder, &b);

@@ -225,14 +225,13 @@ impl<F: RichField + Extendable<D>, const D: usize> From<G2AffineTarget<F, D>>
         let config = CircuitConfig::pairing_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let is_identity = q.infinity;
+        let is_identity = q.is_identity();
         let g2_generator = G2AffineTarget::experimental_generator(&mut builder);
-        let q =
-            G2AffineTarget::conditional_select(&mut builder, q.clone(), g2_generator, is_identity);
+        let q = G2AffineTarget::conditional_select(&mut builder, q, g2_generator, is_identity);
         let mut adder = Adder {
             cur: G2ProjectiveTarget::from(q.clone()),
-            base: q.clone(),
-            coeffs: Vec::with_capacity(68),
+            base: q,
+            coeffs: Vec::with_capacity(68), //WHY?
         };
 
         miller_loop::<F, D, _>(&mut adder);
@@ -355,6 +354,7 @@ fn miller_loop<F: RichField + Extendable<D>, const D: usize, M: MillerLoopDriver
     f
 }
 
+// VERIFIED I TIME WHILE FOCUSED
 // Adaptation of Algorithm 26, https://eprint.iacr.org/2010/354.pdf
 fn point_doubling_and_line_evaluation<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
@@ -400,6 +400,7 @@ fn point_doubling_and_line_evaluation<F: RichField + Extendable<D>, const D: usi
     (tmp0, tmp3, tmp6)
 }
 
+// VERIFIED I TIME WHILE FOCUSED
 // Adaptation of Algorithm 27, https://eprint.iacr.org/2010/354.pdf
 fn point_addition_and_line_evaluation<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
@@ -450,6 +451,7 @@ fn point_addition_and_line_evaluation<F: RichField + Extendable<D>, const D: usi
     (t10, t1, t9)
 }
 
+// VERIFIED I TIME
 fn ell<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     f: Fq12Target<F, D>,
