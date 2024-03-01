@@ -96,9 +96,9 @@ impl<F: RichField + Extendable<D>, const D: usize> G1AffineTarget<F, D> {
         flag: BoolTarget,
     ) -> Self {
         Self {
-            x: FqTarget::select(builder, &a.x, &b.x, &flag),
-            y: FqTarget::select(builder, &a.y, &b.y, &flag),
-            infinity: builder.or(a.infinity, b.infinity),
+            x: FqTarget::conditional_select(builder, &a.x, &b.x, flag),
+            y: FqTarget::conditional_select(builder, &a.y, &b.y, flag),
+            infinity: builder.or(a.infinity, b.infinity), // WARNING
         }
     }
 
@@ -118,8 +118,7 @@ mod tests {
     use crate::fields::fq_target::FqTarget;
 
     use super::G1AffineTarget;
-    use ark_bls12_381::{Fq, G1Affine};
-    use ark_ec::AffineRepr;
+    use ark_bls12_381::Fq;
     use plonky2::{
         field::{goldilocks_field::GoldilocksField, types::Field},
         iop::witness::{PartialWitness, WitnessWrite},

@@ -175,6 +175,18 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         Self { c0, c1 }
     }
 
+    pub fn conditional_select(
+        builder: &mut CircuitBuilder<F, D>,
+        a: &Self,
+        b: &Self,
+        choice: BoolTarget,
+    ) -> Self {
+        Self {
+            c0: Fq6Target::conditional_select(builder, &a.c0, &b.c0, choice),
+            c1: Fq6Target::conditional_select(builder, &a.c1, &b.c1, choice),
+        }
+    }
+
     pub fn is_equal(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> BoolTarget {
         let self_c0 = &self.c0;
         let self_c1 = &self.c1;

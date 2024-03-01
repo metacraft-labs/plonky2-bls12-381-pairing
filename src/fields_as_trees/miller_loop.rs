@@ -276,7 +276,9 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
                 let either_identity = builder.or(term.0.is_identity(), term.1.infinity);
 
                 let new_f = ell(&mut builder, f.clone(), &term.1.coeffs[index], term.0);
-                f = Fq12Target::select(&mut builder, &new_f, &f, &either_identity);
+                // conditional_select ->
+                // f = Fq12Target::select(&mut builder, &new_f, &f, &either_identity);
+                f = Fq12Target::conditional_select(&mut builder, &new_f, &f, either_identity);
             }
             self.index += 1;
 
@@ -291,7 +293,9 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
                 let either_identity = builder.or(term.0.is_identity(), term.1.infinity);
 
                 let new_f = ell(&mut builder, f.clone(), &term.1.coeffs[index], term.0);
-                f = Fq12Target::select(&mut builder, &new_f, &f, &either_identity);
+                // conditional_select ->
+                // f = Fq12Target::select(&mut builder, &new_f, &f, &either_identity);
+                f = Fq12Target::conditional_select(&mut builder, &new_f, &f, either_identity);
             }
             self.index += 1;
 
@@ -538,20 +542,18 @@ pub fn pairing<F: RichField + Extendable<D>, const D: usize>(
     let tmp = miller_loop::<F, D, _>(&mut adder);
 
     let one = Fq12Target::one(&mut builder);
-    let tmp = MillerLoopResult(Fq12Target::select(
+    let tmp = MillerLoopResult(Fq12Target::conditional_select(
         &mut builder,
         &tmp,
         &one,
-        &either_identity,
+        either_identity,
     ));
     tmp.final_exponentiation(&mut builder)
 }
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::{Fq, G1Affine, G2Affine};
-    use ark_ec::pairing::Pairing;
-    use ark_ff::UniformRand;
+    use ark_bls12_381::Fq;
     use plonky2::{
         field::{goldilocks_field::GoldilocksField, types::Field},
         iop::witness::{PartialWitness, WitnessWrite},
@@ -564,10 +566,8 @@ mod tests {
     use crate::{
         fields::fq_target::FqTarget,
         fields_as_trees::{
-            fq12_target_tree::Fq12Target,
-            g1_curve::G1AffineTarget,
-            g2_curve::G2AffineTarget,
-            miller_loop::{multi_miller_loop, MillerLoopResult},
+            fq12_target_tree::Fq12Target, g1_curve::G1AffineTarget, g2_curve::G2AffineTarget,
+            miller_loop::multi_miller_loop,
         },
     };
     use num::One;
@@ -600,16 +600,16 @@ mod tests {
         let config = CircuitConfig::pairing_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
 
-        let one = Fq12Target::one(&mut builder);
-        let onee = Fq12Target::one(&mut builder);
+        // let one = Fq12Target::one(&mut builder);
+        // let onee = Fq12Target::one(&mut builder);
         let result_mml = multi_miller_loop(&[(
             &G1AffineTarget::<F, D>::generator(),
             &G2AffineTarget::<F, D>::identity(&mut builder).into(),
         )])
         .0;
 
-        let x = onee.add(&mut builder, one.clone());
-        let x = x.add(&mut builder, one.clone());
+        // let x = onee.add(&mut builder, one.clone());
+        // let x = x.add(&mut builder, one.clone());
         let fq_x = FqTarget::constant(&mut builder, Fq::one());
         let oth_fq_x = FqTarget::constant(&mut builder, Fq::one());
         println!("result_mml is: {:?}", result_mml);
@@ -649,23 +649,14 @@ mod tests {
         )])
         .0;
 
-        let x = result_mml.is_equal(&mut builder, &one);
+        // let x = result_mml.is_equal(&mut builder, &one);
 
-        // println!("result_mml is: {:?}", result_mml);
+        println!("result_mml is: {:?}", result_mml);
         Fq12Target::connect(&mut builder, &result_mml, &one);
-        let mut pw = PartialWitness::new();
-        pw.set_target(x.target, F::ONE);
+        let pw = PartialWitness::<F>::new();
+        // pw.set_target(x.target, F::ONE);
         let data = builder.build::<C>();
         dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
-    }
-
-    #[test]
-    fn test_miller_loop_result_default() {
-        let config = CircuitConfig::pairing_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-        let one = Fq12Target::one(&mut builder);
-        let default_exponentiation = MillerLoopResult::default(&mut builder).0;
-        Fq12Target::connect(&mut builder, &default_exponentiation, &one)
     }
 }

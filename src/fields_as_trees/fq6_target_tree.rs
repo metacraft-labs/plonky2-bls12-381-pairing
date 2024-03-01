@@ -258,6 +258,19 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         }
     }
 
+    pub fn conditional_select(
+        builder: &mut CircuitBuilder<F, D>,
+        a: &Self,
+        b: &Self,
+        choice: BoolTarget,
+    ) -> Self {
+        Self {
+            c0: Fq2Target::conditional_select(builder, &a.c0, &b.c0, choice),
+            c1: Fq2Target::conditional_select(builder, &a.c1, &b.c1, choice),
+            c2: Fq2Target::conditional_select(builder, &a.c2, &b.c2, choice),
+        }
+    }
+
     pub fn mul_by_1(&self, builder: &mut CircuitBuilder<F, D>, c1: &Fq2Target<F, D>) -> Self {
         let c0 = self.c2.mul(builder, &c1);
         Self {

@@ -4,3 +4,4 @@ pub mod fq6_target_tree;
 pub mod g1_curve;
 pub mod g2_curve;
 pub mod miller_loop;
+pub mod noir_miller_loop;

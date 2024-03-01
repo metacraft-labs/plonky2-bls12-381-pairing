@@ -6,7 +6,7 @@ use plonky2::{
 };
 use plonky2_ecdsa::gadgets::nonnative::CircuitBuilderNonNative;
 
-use crate::fields::fq_target::FqTarget;
+use crate::fields::{bls12_381base::Bls12_381Base, fq_target::FqTarget};
 
 #[derive(Clone, Debug)]
 pub struct Fq2Target<F: RichField + Extendable<D>, const D: usize> {
@@ -120,6 +120,18 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
         }
     }
 
+    pub fn conditional_select(
+        builder: &mut CircuitBuilder<F, D>,
+        a: &Self,
+        b: &Self,
+        choice: BoolTarget,
+    ) -> Self {
+        Self {
+            c0: FqTarget::conditional_select(builder, &a.c0, &b.c0, choice),
+            c1: FqTarget::conditional_select(builder, &a.c1, &b.c1, choice),
+        }
+    }
+
     pub fn is_equal(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> BoolTarget {
         let self_c0 = &self.c0;
         let self_c1 = &self.c1;
@@ -138,6 +150,125 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
             c0: self.c0.sub(builder, &self.c1),
             c1: self.c0.add(builder, &self.c1),
         }
+    }
+
+    pub fn double(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        Self {
+            c0: self.c0.double(builder),
+            c1: self.c1.double(builder),
+        }
+    }
+
+    // Algorithm 7 from: https://eprint.iacr.org/2010/354.pdf
+    pub fn mul_by_b0(&self, builder: &mut CircuitBuilder<F, D>, b0: FqTarget<F, D>) -> Self {
+        let c0 = self.c0.mul(builder, &b0);
+        let c1 = self.c1.mul(builder, &b0);
+
+        Self { c0, c1 }
+    }
+
+    fn mul_by_non_residue_1_power_1(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let y = Fq2Target {
+            c0: FqTarget::fp_constant(
+                builder,
+                Bls12_381Base([
+                    0xb85f_2392_ed75_078d,
+                    0x3d81_e763_3da5_7ef6,
+                    0xc4b9_ba84_d743_247b,
+                    0x4f5f_bd3c_fd03_d60f,
+                    0x1f0d_2c20_b4be_31c2,
+                    0x6706_bb02_bfd3_0419,
+                ]),
+            ),
+            c1: FqTarget::fp_constant(
+                builder,
+                Bls12_381Base([
+                    0xf34a_dc6d_128a_f72c,
+                    0xc27e_6c4d_c15a_2d28,
+                    0x5f3c_f671_c98e_0cec,
+                    0x6fb3_c7b6_8747_a154,
+                    0xb89f_1f23_02e9_e988,
+                    0x32e0_c436_2b3e_fc,
+                ]),
+            ),
+        };
+
+        self.mul(builder, &y)
+    }
+
+    pub fn mul_by_non_residue_1_power_2(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let y = Fq2Target {
+            c0: FqTarget::constant(builder, Fq::from(0)),
+            c1: FqTarget::fp_constant(
+                builder,
+                Bls12_381Base([
+                    0xacaa_0000_0000_fd8b,
+                    0xfdff_494f_eb27_9440,
+                    0x9b5f_b80f_6529_7d89,
+                    0xd49a_7589_7d85_0daa,
+                    0x85de_d463_8640_02ec,
+                    0x99e6_7f39_ea11_011a,
+                ]),
+            ),
+        };
+        self.mul(builder, &y)
+    }
+
+    pub fn mul_by_non_residue_1_power_3(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let y = Fq2Target {
+            c0: FqTarget::fp_constant(
+                builder,
+                Bls12_381Base([
+                    0x09cc_e3ed_fb84_10c8,
+                    0xf405_ec72_2f99_67ee,
+                    0xc541_9200_176e_f777,
+                    0x5e43_d3c2_ab5d_3948,
+                    0xfe7f_d16b_6de3_3168,
+                    0x0b40_ff37_040e_af06,
+                ]),
+            ),
+            c1: FqTarget::fp_constant(
+                builder,
+                Bls12_381Base([
+                    0x09cc_e3ed_fb84_10c8,
+                    0xf405_ec72_2f99_67ee,
+                    0xc541_9200_176e_f777,
+                    0x5e43_d3c2_ab5d_3948,
+                    0xfe7f_d16b_6de3_3168,
+                    0x0b40_ff37_040e_af06,
+                ]),
+            ),
+        };
+
+        self.mul(builder, &y)
+    }
+
+    pub fn mul_by_non_residue_2_power_2(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let y = FqTarget::fp_constant(
+            builder,
+            Bls12_381Base([
+                0xfe, 0xff, 0xfe, 0xff, 0xff, 0xff, 0x01, 0x2e, 0x02, 0x00, 0x0a, 0x62, 0x13, 0xd8,
+                0x17, 0xde, 0x88, 0x96, 0xf8, 0xe6, 0x3b, 0xa9, 0xb3, 0xdd, 0xea, 0x77, 0x0f, 0x6a,
+                0x07, 0xc6, 0x69, 0xba, 0x51, 0xce, 0x76, 0xdf, 0x2f, 0x67, 0x19, 0x5f,
+            ]),
+        );
+
+        self.mul_by_b0(builder, y)
+    }
+
+    pub fn mul_by_non_residue_2_power_3(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        let y = FqTarget::fp_constant(
+            builder,
+            Bls12_381Base([
+                0xaaaa_ffff_ffff_feb9,
+                0xffff_53b1_feff_ab1e,
+                0x24f6_b0f6_a0d2_3067,
+                0xbf12_85f3_844b_7764,
+                0xd7ac_4b43_b6a7_1b4b,
+                0x9ae6_7f39_ea11_011a,
+            ]),
+        );
+        self.mul_by_b0(builder, y)
     }
 
     pub fn select(

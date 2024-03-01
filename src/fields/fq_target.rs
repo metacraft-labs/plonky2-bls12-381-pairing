@@ -3,7 +3,7 @@ use itertools::Itertools;
 use num::{One, Zero};
 use num_bigint::BigUint;
 use plonky2::{
-    field::extension::Extendable,
+    field::{extension::Extendable, types::PrimeField},
     hash::hash_types::RichField,
     iop::{
         generator::{GeneratedValues, SimpleGenerator},
@@ -102,14 +102,28 @@ impl<F: RichField + Extendable<D>, const D: usize> FqTarget<F, D> {
         }
     }
 
-    pub fn test_is_equal(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) {
-        let a_limbs = self.target.value.limbs.iter().map(|x| x.0).collect_vec();
-        let b_limbs = rhs.target.value.limbs.iter().map(|x| x.0).collect_vec();
-        assert_eq!(a_limbs.len(), b_limbs.len());
-
-        for i in 0..a_limbs.len() {
-            builder.connect(self.target.value.limbs[i].0, rhs.target.value.limbs[i].0);
+    pub fn conditional_select(
+        builder: &mut CircuitBuilder<F, D>,
+        a: &Self,
+        b: &Self,
+        choice: BoolTarget,
+    ) -> Self {
+        Self {
+            target: Self::helper_if_nonnative(builder, choice, &a.target, &b.target),
+            _marker: PhantomData,
         }
+    }
+
+    fn helper_if_nonnative<FF: PrimeField>(
+        builder: &mut CircuitBuilder<F, D>,
+        b: BoolTarget,
+        x: &NonNativeTarget<FF>,
+        y: &NonNativeTarget<FF>,
+    ) -> NonNativeTarget<FF> {
+        let not_b = builder.not(b);
+        let maybe_x = builder.mul_nonnative_by_bool(&x, not_b);
+        let maybe_y = builder.mul_nonnative_by_bool(&y, b);
+        builder.add_nonnative(&maybe_x, &maybe_y)
     }
 
     pub fn is_equal(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> BoolTarget {
@@ -216,6 +230,10 @@ impl<F: RichField + Extendable<D>, const D: usize> FqTarget<F, D> {
         let first_digit = self.target.value.limbs[0].0;
         let bits = builder.split_le(first_digit, 32);
         bits[0]
+    }
+
+    pub fn double(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        self.add(builder, self)
     }
 
     // if self is not square, this fails

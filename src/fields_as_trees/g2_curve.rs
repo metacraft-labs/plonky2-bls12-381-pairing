@@ -140,9 +140,9 @@ impl<F: RichField + Extendable<D>, const D: usize> G2AffineTarget<F, D> {
         flag: BoolTarget,
     ) -> Self {
         Self {
-            x: Fq2Target::select(builder, &a.x, &b.x, &flag),
-            y: Fq2Target::select(builder, &a.y, &b.y, &flag),
-            infinity: builder.or(a.infinity, b.infinity),
+            x: Fq2Target::conditional_select(builder, &a.x, &b.x, flag),
+            y: Fq2Target::conditional_select(builder, &a.y, &b.y, flag),
+            infinity: builder.or(a.infinity, b.infinity), // WARNING
         }
     }
 
