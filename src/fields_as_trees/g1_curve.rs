@@ -15,7 +15,7 @@ use crate::fields::fq_target::FqTarget;
 pub struct G1AffineTarget<F: RichField + Extendable<D>, const D: usize> {
     pub x: FqTarget<F, D>,
     pub y: FqTarget<F, D>,
-    infinity: BoolTarget,
+    pub infinity: BoolTarget,
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> G1AffineTarget<F, D> {

@@ -39,13 +39,13 @@ impl<F: RichField + Extendable<D>, const D: usize> From<G2AffineTarget<F, D>>
             type Output = ();
 
             fn point_doubling_and_line_evaluation(&mut self, _: Self::Output) -> Self::Output {
-                let config = CircuitConfig::pairing_config();
+                let config = CircuitConfig::standard_keccak_config();
                 let mut builder = CircuitBuilder::<A, B>::new(config);
                 let coeffs = point_doubling_and_line_evaluation(&mut builder, &mut self.cur);
                 self.coeffs.push(coeffs);
             }
             fn point_addition_and_line_evaluation(&mut self, _: Self::Output) -> Self::Output {
-                let config = CircuitConfig::pairing_config();
+                let config = CircuitConfig::standard_keccak_config();
                 let mut builder = CircuitBuilder::<A, B>::new(config);
                 let coeffs =
                     point_addition_and_line_evaluation(&mut builder, &mut self.cur, &mut self.base);
@@ -98,7 +98,7 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
     {
         type Output = Fq12Target<A, B>;
         fn point_doubling_and_line_evaluation(&mut self, mut f: Self::Output) -> Self::Output {
-            let config = CircuitConfig::pairing_config();
+            let config = CircuitConfig::standard_keccak_config();
             let mut builder = CircuitBuilder::<A, B>::new(config);
             let index = self.index;
             for term in self.terms {
@@ -111,7 +111,7 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
         }
 
         fn point_addition_and_line_evaluation(&mut self, mut f: Self::Output) -> Self::Output {
-            let config = CircuitConfig::pairing_config();
+            let config = CircuitConfig::standard_keccak_config();
             let mut builder = CircuitBuilder::<A, B>::new(config);
             let index = self.index;
             for term in self.terms {
@@ -124,19 +124,19 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
         }
 
         fn square_output(f: Self::Output) -> Self::Output {
-            let config = CircuitConfig::pairing_config();
+            let config = CircuitConfig::standard_keccak_config();
             let mut builder = CircuitBuilder::<A, B>::new(config);
             f.square(&mut builder)
         }
 
         fn conjugate(f: Self::Output) -> Self::Output {
-            let config = CircuitConfig::pairing_config();
+            let config = CircuitConfig::standard_keccak_config();
             let mut builder = CircuitBuilder::<A, B>::new(config);
             f.confugate(&mut builder)
         }
 
         fn one() -> Self::Output {
-            let config = CircuitConfig::pairing_config();
+            let config = CircuitConfig::standard_keccak_config();
             let mut builder = CircuitBuilder::<A, B>::new(config);
             Fq12Target::constant(&mut builder, Fq12::ONE)
         }
@@ -292,48 +292,51 @@ fn ell<F: RichField + Extendable<D>, const D: usize>(
     f.mul_by_014(builder, &coeffs.2, &c1, &c0)
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use ark_bls12_381::Fq12;
-//     use num::One;
-//     use plonky2::{
-//         field::goldilocks_field::GoldilocksField,
-//         iop::witness::PartialWitness,
-//         plonk::{
-//             circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
-//             config::PoseidonGoldilocksConfig,
-//         },
-//     };
+#[cfg(test)]
+mod tests {
+    use ark_bls12_381::Fq12;
+    use num::One;
+    use plonky2::{
+        field::goldilocks_field::GoldilocksField,
+        iop::witness::PartialWitness,
+        plonk::{
+            circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
+            config::PoseidonGoldilocksConfig,
+        },
+    };
 
-//     use crate::{
-//         curves::{g1_curve_target::G1AffineTarget, g2_curve_target::G2AffineTarget},
-//         fields::fq12_target::Fq12Target,
-//         miller_loop_target::multi_miller_loop,
-//     };
-//     type F = GoldilocksField;
-//     type C = PoseidonGoldilocksConfig;
-//     const D: usize = 2;
+    use crate::{
+        curves::{g1_curve_target::G1AffineTarget, g2_curve_target::G2AffineTarget},
+        fields::fq12_target::Fq12Target,
+        miller_loop_target::multi_miller_loop,
+    };
+    type F = GoldilocksField;
+    type C = PoseidonGoldilocksConfig;
+    const D: usize = 2;
 
-//     #[test]
-//     fn miller_loop_result() {
-//         let config = CircuitConfig::pairing_config();
-//         let mut builder = CircuitBuilder::<F, D>::new(config);
-//         let test_fq12_one = Fq12Target::constant(&mut builder, Fq12::one());
-//         let result_mml = multi_miller_loop(&[(
-//             &G1AffineTarget::<F, D>::identity(),
-//             &G2AffineTarget::<F, D>::generator().into(),
-//         )])
-//         .0;
+    #[test]
+    fn miller_loop_result() {
+        let config = CircuitConfig::standard_keccak_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let test_fq12_one = Fq12Target::constant(&mut builder, Fq12::one());
+        let result_mml = multi_miller_loop(&[(
+            &G1AffineTarget::<F, D>::generator(),
+            &G2AffineTarget::<F, D>::identity().into(),
+        )])
+        .0;
 
-//         println!("====================================================================");
-//         println!("result_mml is: {:?}", result_mml);
-//         println!("====================================================================");
+        let test_two_fq12 = test_fq12_one.sub(&mut builder, &test_fq12_one);
+        let two_fq12 = result_mml.add(&mut builder, &result_mml);
 
-//         Fq12Target::connect(&mut builder, &result_mml, &test_fq12_one);
+        println!("====================================================================");
+        // println!("result_mml is: {:?}", result_mml);
+        println!("====================================================================");
 
-//         let pw = PartialWitness::new();
-//         let data = builder.build::<C>();
-//         dbg!(data.common.degree_bits());
-//         let _proof = data.prove(pw);
-//     }
-// }
+        Fq12Target::connect(&mut builder, &test_fq12_one, &test_two_fq12);
+
+        let pw   = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+}
