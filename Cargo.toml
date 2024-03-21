@@ -20,3 +20,12 @@ num-traits = "0.2"
 subtle = "2.5.0"
 rand_core = "0.6.4"
 serde = { version = "1.0", features = ["derive"] }
+group = "0.13.0"
+pairing = "0.23.0"
+ff = "0.13.0"
+
+
+[features]
+default = ["bits", "alloc"]
+bits = ["ff/bits"]
+alloc = ["group/alloc"]

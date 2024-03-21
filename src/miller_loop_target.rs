@@ -326,7 +326,7 @@ mod tests {
         .0;
 
         let test_two_fq12 = test_fq12_one.sub(&mut builder, &test_fq12_one);
-        let two_fq12 = result_mml.add(&mut builder, &result_mml);
+        let _two_fq12 = result_mml.add(&mut builder, &result_mml);
 
         println!("====================================================================");
         // println!("result_mml is: {:?}", result_mml);
@@ -334,7 +334,7 @@ mod tests {
 
         Fq12Target::connect(&mut builder, &test_fq12_one, &test_two_fq12);
 
-        let pw   = PartialWitness::new();
+        let pw = PartialWitness::new();
         let data = builder.build::<C>();
         dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);

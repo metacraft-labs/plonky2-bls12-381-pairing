@@ -553,11 +553,12 @@ pub fn pairing<F: RichField + Extendable<D>, const D: usize>(
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::{Fq, G1Affine, G2Affine};
+    use ark_bls12_381::{Fq, Fq12, Fr, G1Affine, G2Affine};
     use ark_ec::AffineRepr;
-    use ark_ff::UniformRand;
+    use ark_ff::{Field, UniformRand};
+    use num::BigUint;
     use plonky2::{
-        field::{goldilocks_field::GoldilocksField, types::Field},
+        field::{goldilocks_field::GoldilocksField, types::Field as OtherField},
         iop::witness::{PartialWitness, WitnessWrite},
         plonk::{
             circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
@@ -568,10 +569,14 @@ mod tests {
     use crate::{
         fields::fq_target::FqTarget,
         fields_as_trees::{
-            fq12_target_tree::Fq12Target, fq2_target_tree::Fq2Target, g1_curve::G1AffineTarget, g2_curve::G2AffineTarget, miller_loop::{multi_miller_loop, G2PreparedTarget}
+            fq12_target_tree::Fq12Target,
+            fq2_target_tree::Fq2Target,
+            fq6_target_tree::Fq6Target,
+            g1_curve::G1AffineTarget,
+            g2_curve::G2AffineTarget,
+            miller_loop::{multi_miller_loop, MillerLoopResult},
         },
     };
-    use num::One;
 
     type F = GoldilocksField;
     type C = PoseidonGoldilocksConfig;
@@ -582,67 +587,67 @@ mod tests {
         let config = CircuitConfig::pairing_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
         let rng = &mut rand::thread_rng();
-        let P0 = G1Affine::rand(rng);
+        let p0 = G1Affine::rand(rng);
         // println!("G1Affine: {}");
-        println!("====================================================================================");
-        let P1 = G1Affine::rand(rng);
-        let Q0 = G2Affine::rand(rng);
-        let Q1 = G2Affine::rand(rng);
+        println!(
+            "===================================================================================="
+        );
+        let p1 = G1Affine::rand(rng);
+        let q0 = G2Affine::rand(rng);
+        let q1 = G2Affine::rand(rng);
 
-        let Q0_X = Fq2Target {
-            c0: FqTarget::constant(&mut builder, Q0.x().unwrap().c0),
-            c1: FqTarget::constant(&mut builder, Q0.x().unwrap().c1),
+        let q0_x = Fq2Target {
+            c0: FqTarget::constant(&mut builder, q0.x().unwrap().c0),
+            c1: FqTarget::constant(&mut builder, q0.x().unwrap().c1),
         };
-        let Q0_Y = Fq2Target {
-            c0: FqTarget::constant(&mut builder, Q0.y().unwrap().c0),
-            c1: FqTarget::constant(&mut builder, Q0.y().unwrap().c1),
+        let q0_y = Fq2Target {
+            c0: FqTarget::constant(&mut builder, q0.y().unwrap().c0),
+            c1: FqTarget::constant(&mut builder, q0.y().unwrap().c1),
         };
-        let Q0: G2AffineTarget<F, D> = G2AffineTarget {
-            x: Q0_X.clone(),
-            y: Q0_Y.clone(),
+        let q0: G2AffineTarget<F, D> = G2AffineTarget {
+            x: q0_x.clone(),
+            y: q0_y.clone(),
             infinity: builder._false(),
         };
 
-        let P0_X = FqTarget::constant(&mut builder, *P0.x().unwrap());
-        let P0_Y = FqTarget::constant(&mut builder, *P0.y().unwrap());
-        let P0: G1AffineTarget<F, D> = G1AffineTarget {
-            x: P0_X.clone(),
-            y: P0_Y.clone(),
+        let p0_x = FqTarget::constant(&mut builder, *p0.x().unwrap());
+        let p0_y = FqTarget::constant(&mut builder, *p0.y().unwrap());
+        let p0: G1AffineTarget<F, D> = G1AffineTarget {
+            x: p0_x.clone(),
+            y: p0_y.clone(),
             infinity: builder._false(),
         };
 
-        let P1_X = FqTarget::constant(&mut builder, *P1.x().unwrap());
-        let P1_Y = FqTarget::constant(&mut builder, *P1.y().unwrap());
-        let P1: G1AffineTarget<F, D> = G1AffineTarget {
-            x: P1_X.clone(),
-            y: P1_Y.clone(),
+        let p1_x = FqTarget::constant(&mut builder, *p1.x().unwrap());
+        let p1_y = FqTarget::constant(&mut builder, *p1.y().unwrap());
+        let p1: G1AffineTarget<F, D> = G1AffineTarget {
+            x: p1_x.clone(),
+            y: p1_y.clone(),
             infinity: builder._false(),
         };
 
-        let Q1_X = Fq2Target {
-            c0: FqTarget::constant(&mut builder, Q1.x().unwrap().c0),
-            c1: FqTarget::constant(&mut builder, Q1.x().unwrap().c1),
+        let q1_x = Fq2Target {
+            c0: FqTarget::constant(&mut builder, q1.x().unwrap().c0),
+            c1: FqTarget::constant(&mut builder, q1.x().unwrap().c1),
         };
-        let Q1_Y = Fq2Target {
-            c0: FqTarget::constant(&mut builder, Q1.y().unwrap().c0),
-            c1: FqTarget::constant(&mut builder, Q1.y().unwrap().c1),
+        let q1_y = Fq2Target {
+            c0: FqTarget::constant(&mut builder, q1.y().unwrap().c0),
+            c1: FqTarget::constant(&mut builder, q1.y().unwrap().c1),
         };
 
-        let Q1: G2AffineTarget<F, D> = G2AffineTarget {
-            x: Q1_X.clone(),
-            y: Q1_Y.clone(),
+        let q1: G2AffineTarget<F, D> = G2AffineTarget {
+            x: q1_x.clone(),
+            y: q1_y.clone(),
             infinity: builder._false(),
         };
 
-        let r0 = multi_miller_loop(&[(
-            &P0.clone(), &Q0.clone().into()
-        )]);
-        let r1 = multi_miller_loop(&[(
-            &P1.clone(), &Q1.clone().into()
-        )]);
+        let r0 = multi_miller_loop(&[(&p0.clone(), &q0.clone().into())]);
+        let r1 = multi_miller_loop(&[(&p1.clone(), &q1.clone().into())]);
 
         println!("r0: {:?}", &r0);
-        println!("====================================================================================");
+        println!(
+            "===================================================================================="
+        );
         // let r_expected = r0.0.mul(&mut builder, &r1.0);
         // let r = multi_miller_loop(&[(
         //     &P0, &Q0.into()), (&P1, &Q1.into()
@@ -687,6 +692,89 @@ mod tests {
 
         let mut pw = PartialWitness::new();
         pw.set_target(p.target, F::ONE);
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_final_exponentiation() {
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let rng = &mut rand::thread_rng();
+        let x = Fq12::rand(rng);
+        let x_target = Fq12Target {
+            c0: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, x.c0.c0.c0),
+                    c1: FqTarget::constant(&mut builder, x.c0.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, x.c0.c1.c0),
+                    c1: FqTarget::constant(&mut builder, x.c0.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, x.c0.c2.c0),
+                    c1: FqTarget::constant(&mut builder, x.c0.c2.c1),
+                },
+            },
+            c1: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, x.c1.c0.c0),
+                    c1: FqTarget::constant(&mut builder, x.c1.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, x.c1.c1.c0),
+                    c1: FqTarget::constant(&mut builder, x.c1.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, x.c1.c2.c0),
+                    c1: FqTarget::constant(&mut builder, x.c1.c2.c1),
+                },
+            },
+        };
+        let ops = MillerLoopResult(x_target);
+        let final_x = MillerLoopResult::final_exponentiation(&ops, &mut builder);
+
+        use ark_ff::PrimeField;
+        let p: BigUint = Fq::MODULUS.into();
+        let r: BigUint = Fr::MODULUS.into();
+        let exp = (p.pow(12) - 1u32) / r;
+        let final_x2 = x.pow(&exp.to_u64_digits());
+        let final_x2 = Fq12Target {
+            c0: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, final_x2.c0.c0.c0),
+                    c1: FqTarget::constant(&mut builder, final_x2.c0.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, final_x2.c0.c1.c0),
+                    c1: FqTarget::constant(&mut builder, final_x2.c0.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, final_x2.c0.c2.c0),
+                    c1: FqTarget::constant(&mut builder, final_x2.c0.c2.c1),
+                },
+            },
+            c1: Fq6Target {
+                c0: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, final_x2.c1.c0.c0),
+                    c1: FqTarget::constant(&mut builder, final_x2.c1.c0.c1),
+                },
+                c1: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, final_x2.c1.c1.c0),
+                    c1: FqTarget::constant(&mut builder, final_x2.c1.c1.c1),
+                },
+                c2: Fq2Target {
+                    c0: FqTarget::constant(&mut builder, final_x2.c1.c2.c0),
+                    c1: FqTarget::constant(&mut builder, final_x2.c1.c2.c1),
+                },
+            },
+        };
+
+        Fq12Target::connect(&mut builder, &final_x.0, &final_x2);
+
+        let pw = PartialWitness::new();
         let data = builder.build::<C>();
         dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
