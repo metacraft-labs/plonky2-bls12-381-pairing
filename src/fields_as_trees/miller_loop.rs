@@ -679,19 +679,10 @@ mod tests {
         .0;
 
         let one = Fq12Target::one(&mut builder);
-        // let fq_x = FqTarget::constant(&mut builder, Fq::one());
-        // let oth_fq_x = FqTarget::constant(&mut builder, Fq::one());
-        // let oth_fq_x_ = oth_fq_x.add(&mut builder, &fq_x);
 
-        // let x = oth_fq_x_.clone().add(&mut builder, &fq_x);
+        Fq12Target::connect(&mut builder, &result_mml, &one);
 
-        let flag = builder.constant_bool(true);
-
-        let a_expected = Fq12Target::select(&mut builder, &result_mml, &one, &flag);
-        let p = a_expected.is_equal(&mut builder, &one);
-
-        let mut pw = PartialWitness::new();
-        pw.set_target(p.target, F::ONE);
+        let pw = PartialWitness::new();
         let data = builder.build::<C>();
         dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
