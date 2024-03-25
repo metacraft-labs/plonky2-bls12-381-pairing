@@ -13,5 +13,5 @@ pub struct G2ProjectiveTarget<F: RichField + Extendable<D>, const D: usize> {
 pub struct G2AffineTarget<F: RichField + Extendable<D>, const D: usize> {
     pub x: Fq2Target<F, D>,
     pub y: Fq2Target<F, D>,
-    pub infinity: Choice, // not sure if it's going to work in circuit
+    pub infinity: Choice,
 }
