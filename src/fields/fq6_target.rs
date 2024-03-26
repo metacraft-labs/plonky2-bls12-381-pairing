@@ -195,7 +195,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         }
     }
 
-    // COEFFSS
     pub fn mul_by_01(
         self,
         builder: &mut CircuitBuilder<F, D>,
@@ -251,6 +250,18 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         let fq6_c0 = Fq2Target::new(vec![fq6_c00.clone(), fq6_c01.clone()]);
         let fq6_c1 = Fq2Target::new(vec![fq6_c10.clone(), fq6_c11.clone()]);
         let fq6_c2 = Fq2Target::new(vec![fq6_c20.clone(), fq6_c21.clone()]);
+
+        //
+        let b_b = fq6_c1.clone();
+        let b_b = b_b.mul(builder, c1);
+        // let mut tmp = self.c1;
+        // tmp.add_assign(&self.c2);
+
+        // t1.mul_assign(&tmp);
+        // t1.sub_assign(&b_b);
+        // P::mul_fp2_by_nonresidue_in_place(&mut t1);
+
+        //
 
         let c0 = fq6_c2.mul(builder, c1);
         let c0 = c0.mul_by_nonresidue(builder);
@@ -376,7 +387,7 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F>
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::Fq6;
+    use ark_bls12_381::{Fq2, Fq6};
     use ark_ff::{Field, UniformRand};
     use plonky2::{
         field::goldilocks_field::GoldilocksField,
@@ -386,6 +397,8 @@ mod tests {
             config::PoseidonGoldilocksConfig,
         },
     };
+
+    use crate::fields::fq2_target::Fq2Target;
 
     use super::Fq6Target;
 
@@ -406,6 +419,58 @@ mod tests {
         let inv_x_expected_t = Fq6Target::constant(&mut builder, inv_x_expected);
 
         Fq6Target::connect(&mut builder, &inv_x_t, &inv_x_expected_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_mul_by_01() {
+        let rng = &mut rand::thread_rng();
+        let x: Fq6 = Fq6::rand(rng);
+        let c0: Fq2 = Fq2::rand(rng);
+        let c1: Fq2 = Fq2::rand(rng);
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let x_t = Fq6Target::constant(&mut builder, x);
+        let x_c0 = Fq2Target::constant(&mut builder, c0);
+        let x_c1 = Fq2Target::constant(&mut builder, c1);
+        let mut x = x;
+        x.mul_by_01(&c0, &c1);
+
+        let x_t = x_t.mul_by_01(&mut builder, &x_c0, &x_c1);
+
+        let x_expected_t = Fq6Target::constant(&mut builder, x);
+
+        Fq6Target::connect(&mut builder, &x_t, &x_expected_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_mul_by_1() {
+        let rng = &mut rand::thread_rng();
+        let x: Fq6 = Fq6::rand(rng);
+        let c1: Fq2 = Fq2::rand(rng);
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let x_t = Fq6Target::constant(&mut builder, x);
+        let x_c1 = Fq2Target::constant(&mut builder, c1);
+        let mut x = x;
+        x.mul_by_1(&c1);
+
+        let x_t = x_t.mul_by_1(&mut builder, &x_c1);
+
+        let x_expected_t = Fq6Target::constant(&mut builder, x);
+
+        Fq6Target::connect(&mut builder, &x_t, &x_expected_t);
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();

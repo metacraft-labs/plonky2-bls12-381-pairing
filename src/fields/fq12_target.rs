@@ -193,7 +193,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
     }
 
     pub fn mul_by_014(
-        &self,
+        self,
         builder: &mut CircuitBuilder<F, D>,
         c0: &Fq2Target<F, D>,
         c1: &Fq2Target<F, D>,
@@ -397,7 +397,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::{Fq, Fq12};
+    use ark_bls12_381::{Fq, Fq12, Fq2};
     use ark_ff::Field;
     use ark_std::UniformRand;
     use num_bigint::BigUint;
@@ -409,6 +409,8 @@ mod tests {
             config::PoseidonGoldilocksConfig,
         },
     };
+
+    use crate::fields::fq2_target::Fq2Target;
 
     use super::{from_biguint_to_fq, Fq12Target};
 
@@ -477,6 +479,34 @@ mod tests {
         let inv_x_expected_t = Fq12Target::constant(&mut builder, inv_x_expected);
 
         Fq12Target::connect(&mut builder, &inv_x_t, &inv_x_expected_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn _test_mul_by_014() {
+        let rng = &mut rand::thread_rng();
+        let x: Fq12 = Fq12::rand(rng);
+        let c0: Fq2 = Fq2::rand(rng);
+        let c1: Fq2 = Fq2::rand(rng);
+        let c4: Fq2 = Fq2::rand(rng);
+        let mut r_expected = x;
+        r_expected.mul_by_014(&c0, &c1, &c4);
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let c0_t = Fq2Target::constant(&mut builder, c0);
+        let c1_t = Fq2Target::constant(&mut builder, c1);
+        let c4_t = Fq2Target::constant(&mut builder, c4);
+        let r_t = Fq12Target::constant(&mut builder, x);
+        let r_t = r_t.mul_by_014(&mut builder, &c0_t, &c1_t, &c4_t);
+
+        let r_expected_t = Fq12Target::constant(&mut builder, r_expected);
+
+        Fq12Target::connect(&mut builder, &r_t, &r_expected_t);
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();

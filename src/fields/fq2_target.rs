@@ -473,7 +473,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
 #[cfg(test)]
 mod tests {
     use ark_bls12_381::{Fq, Fq2};
-    use ark_ff::Field;
+    use ark_ff::{Field, Fp};
     use ark_std::UniformRand;
     use num_traits::{One, Zero};
     use plonky2::{
@@ -486,7 +486,7 @@ mod tests {
     };
     use rand::Rng;
 
-    use crate::fields::helpers::sgn0_fq2;
+    use crate::fields::{fq_target::FqTarget, helpers::sgn0_fq2};
 
     use super::Fq2Target;
 
@@ -677,6 +677,30 @@ mod tests {
         let expected_sqrt_t = Fq2Target::constant(&mut builder, expected_sqrt);
 
         Fq2Target::connect(&mut builder, &sqrt_t, &expected_sqrt_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_mul_assign_by_fp() {
+        let rng = &mut rand::thread_rng();
+        let x = Fq2::rand(rng);
+        let y = Fp::rand(rng);
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let x_t = Fq2Target::constant(&mut builder, x);
+        let y_t = FqTarget::constant(&mut builder, y);
+
+        let mut x = x;
+        x.mul_assign_by_fp(&y);
+        let x_t = x_t.mul_assign_by_fp(&mut builder, y_t);
+
+        let x_mul_y_t = Fq2Target::constant(&mut builder, x);
+
+        Fq2Target::connect(&mut builder, &x_mul_y_t, &x_t);
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();

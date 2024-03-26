@@ -9,6 +9,7 @@ use plonky2::{
 
 use crate::{
     fields::{fq2_target::Fq2Target, fq_target::FqTarget},
+    native::miller_loop::G2Projective,
     utils::constants::BLS_X,
 };
 
@@ -41,6 +42,28 @@ struct G2ProjectiveTarget<F: RichField + Extendable<D>, const D: usize> {
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> G2ProjectiveTarget<F, D> {
+    pub fn empty(builder: &mut CircuitBuilder<F, D>) -> Self {
+        Self {
+            x: Fq2Target::empty(builder),
+            y: Fq2Target::empty(builder),
+            z: Fq2Target::empty(builder),
+        }
+    }
+
+    pub fn constant(builder: &mut CircuitBuilder<F, D>, new_g2_projective: &G2Projective) -> Self {
+        Self {
+            x: Fq2Target::constant(builder, new_g2_projective.x),
+            y: Fq2Target::constant(builder, new_g2_projective.y),
+            z: Fq2Target::constant(builder, new_g2_projective.z),
+        }
+    }
+
+    pub fn connect(builder: &mut CircuitBuilder<F, D>, lhs: &Self, rhs: &Self) {
+        Fq2Target::connect(builder, &lhs.x, &rhs.x);
+        Fq2Target::connect(builder, &lhs.y, &rhs.y);
+        Fq2Target::connect(builder, &lhs.z, &rhs.z);
+    }
+
     fn double_in_place(
         &mut self,
         builder: &mut CircuitBuilder<F, D>,
@@ -99,7 +122,7 @@ impl<F: RichField + Extendable<D>, const D: usize> G2ProjectiveTarget<F, D> {
         let g = self.x.mul(builder, &d);
         let g_double = g.double(builder);
         let e_add_f = e.add(builder, &f);
-        let h = e_add_f.add(builder, &g_double);
+        let h = e_add_f.sub(builder, &g_double);
         self.x = lambda.mul(builder, &h);
         let g_sub_h = g.sub(builder, &h);
         let e_mul_y = e.mul(builder, &self.y);
@@ -160,5 +183,78 @@ impl<F: RichField + Extendable<D>, const D: usize> G2PreparedTarget<F, D> {
                 infinity: false,
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ark_bls12_381::{G1Affine, G2Affine};
+    use ark_ec::AffineRepr;
+    use ark_ff::UniformRand;
+    use plonky2::{
+        field::goldilocks_field::GoldilocksField,
+        iop::witness::PartialWitness,
+        plonk::{
+            circuit_builder::CircuitBuilder, circuit_data::CircuitConfig,
+            config::PoseidonGoldilocksConfig,
+        },
+    };
+
+    use crate::{
+        curves::g2::G2AffineTarget, fields::fq_target::FqTarget, native::miller_loop::G2Projective,
+    };
+
+    use super::G2ProjectiveTarget;
+
+    type F = GoldilocksField;
+    type C = PoseidonGoldilocksConfig;
+    const D: usize = 2;
+
+    #[test]
+    fn test_g2_projective_double_in_place() {
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let rng = &mut rand::thread_rng();
+        let rand_g1_affine = G1Affine::rand(rng);
+        let rand_x = rand_g1_affine.x().unwrap();
+        let rand_x_t = FqTarget::constant(&mut builder, *rand_x);
+
+        let rand_g2 = G2Projective::random();
+        let mut rand_g2_t = G2ProjectiveTarget::constant(&mut builder, &rand_g2);
+        let mut m_rand_g2 = rand_g2;
+        m_rand_g2.double_in_place(rand_x);
+        rand_g2_t.double_in_place(&mut builder, &rand_x_t);
+
+        let expected_g2 = G2ProjectiveTarget::constant(&mut builder, &m_rand_g2);
+
+        G2ProjectiveTarget::connect(&mut builder, &expected_g2, &rand_g2_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_g2_projective_add_in_place() {
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let rng = &mut rand::thread_rng();
+        let rand_g2_affine = G2Affine::rand(rng);
+        let rand_g2_affine_t = G2AffineTarget::constant(&mut builder, rand_g2_affine);
+
+        let rand_g2 = G2Projective::random();
+        let mut rand_g2_t = G2ProjectiveTarget::constant(&mut builder, &rand_g2);
+        let mut m_rand_g2 = rand_g2;
+        m_rand_g2.add_in_place(&rand_g2_affine);
+        rand_g2_t.add_in_place(&mut builder, &rand_g2_affine_t);
+
+        let expected_g2 = G2ProjectiveTarget::constant(&mut builder, &m_rand_g2);
+
+        G2ProjectiveTarget::connect(&mut builder, &expected_g2, &rand_g2_t);
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
     }
 }
