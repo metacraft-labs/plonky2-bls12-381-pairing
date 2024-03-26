@@ -1,3 +1,5 @@
+use std::iter::Product;
+
 use ark_bls12_381::{Fq, Fq12};
 use ark_ff::Field;
 use itertools::Itertools;
@@ -10,7 +12,7 @@ use plonky2::{
         target::{BoolTarget, Target},
         witness::{PartitionWitness, WitnessWrite},
     },
-    plonk::circuit_builder::CircuitBuilder,
+    plonk::{circuit_builder::CircuitBuilder, circuit_data::CircuitConfig},
     util::serialization::{Buffer, IoError},
 };
 use plonky2_ecdsa::gadgets::{
@@ -23,7 +25,7 @@ use crate::fields::{
     helpers::{from_biguint_to_fq, MyFq12},
 };
 
-use super::fq2_target::Fq2Target;
+use super::{fq2_target::Fq2Target, fq6_target::Fq6Target};
 
 #[derive(Debug, Clone)]
 pub struct Fq12Target<F: RichField + Extendable<D>, const D: usize> {
@@ -191,12 +193,72 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
     }
 
     pub fn mul_by_014(
-        &mut self,
+        &self,
         builder: &mut CircuitBuilder<F, D>,
         c0: &Fq2Target<F, D>,
         c1: &Fq2Target<F, D>,
         c4: &Fq2Target<F, D>,
-    ) {
+    ) -> Self {
+        let coeffs = &self.coeffs;
+        let c000 = &coeffs[0]; // w^0 u^0
+        let c001 = &coeffs[6]; // w^0 u^1
+        let c010 = &coeffs[2]; // w^2 u^0
+        let c011 = &coeffs[8]; // w^2 u^1
+        let c020 = &coeffs[4]; // w^4 u^0
+        let c021 = &coeffs[10]; // w^4 u^1
+        let c100 = &coeffs[1]; // w^1 u^0
+        let c101 = &coeffs[7]; // w^1 u^1
+        let c110 = &coeffs[3]; // w^3 u^0
+        let c111 = &coeffs[9]; // w^3 u^1
+        let c120 = &coeffs[5]; // w^5 u^0
+        let c121 = &coeffs[11]; // w^5 u^1
+
+        let fq6_from_fq12_c0 = Fq6Target::new(vec![
+            c000.clone(),
+            c001.clone(),
+            c010.clone(),
+            c011.clone(),
+            c020.clone(),
+            c021.clone(),
+        ]);
+        let fq6_from_fq12_c1 = Fq6Target::new(vec![
+            c100.clone(),
+            c101.clone(),
+            c110.clone(),
+            c111.clone(),
+            c120.clone(),
+            c121.clone(),
+        ]);
+
+        // let fq6_from_fq12_c0 = Fq6Target::new(self.coeffs[0..6].to_vec());
+        // let fq6_from_fq12_c1 = Fq6Target::new(self.coeffs[6..12].to_vec());
+        let temp_fq6_from_fq12_c0 = fq6_from_fq12_c0.clone();
+        let temp_fq6_from_fq12_c1 = fq6_from_fq12_c1.clone();
+        let aa = fq6_from_fq12_c0.mul_by_01(builder, c0, c1);
+        let bb = fq6_from_fq12_c1.mul_by_1(builder, c4);
+        let o = c1.add(builder, c4);
+        let c1 = temp_fq6_from_fq12_c1.add(builder, &temp_fq6_from_fq12_c0);
+        let c1 = c1.mul_by_01(builder, c0, &o);
+        let c1 = c1.sub(builder, &aa);
+        let c1 = c1.sub(builder, &bb);
+        let c0 = bb;
+        let c0 = c0.mul_by_nonresidue(builder);
+        let c0 = c0.add(builder, &aa);
+
+        Self::new(vec![
+            c0.coeffs[0].clone(),
+            c0.coeffs[1].clone(),
+            c0.coeffs[2].clone(),
+            c0.coeffs[3].clone(),
+            c0.coeffs[4].clone(),
+            c0.coeffs[5].clone(),
+            c1.coeffs[0].clone(),
+            c1.coeffs[1].clone(),
+            c1.coeffs[2].clone(),
+            c1.coeffs[3].clone(),
+            c1.coeffs[4].clone(),
+            c1.coeffs[5].clone(),
+        ])
     }
 
     pub fn div(&self, builder: &mut CircuitBuilder<F, D>, other: &Self) -> Self {
@@ -235,6 +297,16 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
     ) -> Self {
         let muled = self.mul(builder, x);
         Self::select(builder, &muled, &self, flag)
+    }
+}
+
+impl<F: RichField + Extendable<D>, const D: usize> Product for Fq12Target<F, D> {
+    fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        iter.fold(Fq12Target::empty(&mut builder), |a, b| {
+            a.mul(&mut builder, &b)
+        })
     }
 }
 

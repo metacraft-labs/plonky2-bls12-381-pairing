@@ -1,5 +1,5 @@
-use ark_bls12_381::{Fq, Fq2};
-use ark_ec::short_weierstrass::SWCurveConfig;
+use ark_bls12_381::{Fq, Fq2, G2Affine};
+use ark_ec::{short_weierstrass::SWCurveConfig, AffineRepr};
 use ark_ff::BitIteratorBE;
 use num::One;
 use plonky2::{
@@ -14,22 +14,30 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct G2AffineTarget<F: RichField + Extendable<D>, const D: usize> {
-    pub x: Fq2Target<F, D>,
-    pub y: Fq2Target<F, D>,
-    pub infinity: bool,
+    x: Fq2Target<F, D>,
+    y: Fq2Target<F, D>,
+    infinity: bool,
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> G2AffineTarget<F, D> {
+    pub fn constant(builder: &mut CircuitBuilder<F, D>, g2: G2Affine) -> Self {
+        Self {
+            x: Fq2Target::constant(builder, g2.x().unwrap().clone()),
+            y: Fq2Target::constant(builder, g2.y().unwrap().clone()),
+            infinity: false,
+        }
+    }
+
     fn xy(&self) -> Option<(&self::Fq2Target<F, D>, &self::Fq2Target<F, D>)> {
         (!self.infinity).then(|| (&self.x, &self.y))
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct G2ProjectiveTarget<F: RichField + Extendable<D>, const D: usize> {
-    pub x: Fq2Target<F, D>,
-    pub y: Fq2Target<F, D>,
-    pub z: Fq2Target<F, D>,
+struct G2ProjectiveTarget<F: RichField + Extendable<D>, const D: usize> {
+    x: Fq2Target<F, D>,
+    y: Fq2Target<F, D>,
+    z: Fq2Target<F, D>,
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> G2ProjectiveTarget<F, D> {
@@ -118,11 +126,11 @@ pub(crate) type EllCoeffTarget<F, const D: usize> =
     (Fq2Target<F, D>, Fq2Target<F, D>, Fq2Target<F, D>);
 
 impl<F: RichField + Extendable<D>, const D: usize> G2PreparedTarget<F, D> {
-    fn is_zero(&self) -> bool {
+    pub fn is_zero(&self) -> bool {
         self.infinity
     }
 
-    fn from(builder: &mut CircuitBuilder<F, D>, q: G2AffineTarget<F, D>) -> Self {
+    pub fn from(builder: &mut CircuitBuilder<F, D>, q: G2AffineTarget<F, D>) -> Self {
         let one = FqTarget::constant(builder, Fq::one()); // Fq::two
         let two = one.add(builder, &one);
         let two_inv = two.inv(builder);

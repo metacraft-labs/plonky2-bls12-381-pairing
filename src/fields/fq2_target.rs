@@ -233,6 +233,20 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
         Self { coeffs: [c0, c1] }
     }
 
+    pub fn mul_by_nonresidue(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        // Multiply a + bu by u + 1, getting
+        // au + a + bu^2 + bu
+        // and because u^2 = -1, we get
+        // (a - b) + (a + b)u
+
+        Self {
+            coeffs: [
+                self.coeffs[0].sub(builder, &self.coeffs[1]),
+                self.coeffs[0].add(builder, &self.coeffs[1]),
+            ],
+        }
+    }
+
     pub fn conjugate(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
         let c0 = self.coeffs[0].clone();
         let c1 = self.coeffs[1].clone();
