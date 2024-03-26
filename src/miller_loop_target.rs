@@ -4,7 +4,7 @@ use plonky2::{
 };
 
 use crate::{
-    curves::g2_curve_target::{G2AffineTarget, G2ProjectiveTarget},
+    curves::g2::{G2AffineTarget, G2ProjectiveTarget},
     fields::{fq12_target::Fq12Target, fq2_target::Fq2Target},
     utils::constants::{BLS_X, BLS_X_IS_NEGATIVE},
 };
