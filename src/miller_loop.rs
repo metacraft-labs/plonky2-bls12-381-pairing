@@ -1,4 +1,5 @@
 use ark_bls12_381::Fq12;
+use ark_ff::vec::IntoIter;
 use ark_ff::BitIteratorBE;
 use ark_std::cfg_chunks_mut;
 use num::One;
@@ -12,7 +13,7 @@ use crate::{
         g1::{G1AffineTarget, G1PreparedTarget},
         g2::{EllCoeffTarget, G2PreparedTarget},
     },
-    fields::fq12_target::Fq12Target,
+    fields::{fq12_target::Fq12Target, fq2_target::Fq2Target},
     utils::constants::{BLS_X, BLS_X_IS_NEGATIVE},
 };
 
@@ -78,6 +79,44 @@ fn ell_target<F: RichField + Extendable<D>, const D: usize>(
     f
 }
 
+pub fn getter_of_prepared_pairs_target<F: RichField + Extendable<D>, const D: usize>(
+    a: impl IntoIterator<Item = impl Into<G1PreparedTarget<F, D>>>,
+    b: impl IntoIterator<Item = impl Into<G2PreparedTarget<F, D>>>,
+) -> Vec<(
+    G1PreparedTarget<F, D>,
+    IntoIter<(Fq2Target<F, D>, Fq2Target<F, D>, Fq2Target<F, D>)>,
+)> {
+    use itertools::Itertools;
+
+    let pairs = a
+        .into_iter()
+        .zip_eq(b)
+        .filter_map(|(p, q)| {
+            let (p, q) = (p.into(), q.into());
+            match !p.0.is_zero() && !q.is_zero() {
+                true => Some((p, q.ell_coeffs.into_iter())),
+                false => None,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    pairs
+}
+
+pub fn connect_pairs<F: RichField + Extendable<D>, const D: usize>(
+    builder: &mut CircuitBuilder<F, D>,
+    lhs: Vec<(
+        G1PreparedTarget<F, D>,
+        IntoIter<(Fq2Target<F, D>, Fq2Target<F, D>, Fq2Target<F, D>)>,
+    )>,
+    rhs: Vec<(
+        G1PreparedTarget<F, D>,
+        IntoIter<(Fq2Target<F, D>, Fq2Target<F, D>, Fq2Target<F, D>)>,
+    )>,
+) {
+    G1AffineTarget::connect(builder, &lhs[0].0 .0, &rhs[0].0 .0);
+}
+
 #[cfg(test)]
 mod tests {
     use ark_bls12_381::{Fq12, Fq2, G1Affine, G2Affine};
@@ -98,11 +137,11 @@ mod tests {
             g2::{G2AffineTarget, G2PreparedTarget},
         },
         fields::{fq12_target::Fq12Target, fq2_target::Fq2Target},
-        miller_loop::multi_miller_loop,
-        native::miller_loop::ell,
+        miller_loop::{connect_pairs, multi_miller_loop},
+        native::miller_loop::{ell, getter_of_prepared_pairs, G1Prepared, G2Prepared},
     };
 
-    use super::ell_target;
+    use super::{ell_target, getter_of_prepared_pairs_target};
 
     type F = GoldilocksField;
     type C = PoseidonGoldilocksConfig;
@@ -161,6 +200,32 @@ mod tests {
 
         let f_expected = Fq12Target::constant(&mut builder, f);
         Fq12Target::connect(&mut builder, &f_t, &f_expected);
+
+        let pw = PartialWitness::<F>::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_getter_of_prepared_pairs() {
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let rng = &mut rand::thread_rng();
+        let p = G1Affine::rand(rng);
+        let q = G2Affine::rand(rng);
+        let native_pairs = getter_of_prepared_pairs([G1Prepared(p)], [G2Prepared::from(q)]);
+        let native_pair_g1 =
+            G1PreparedTarget(G1AffineTarget::constant(&mut builder, native_pairs[0].0 .0));
+        let native_pair_g2_coeffs = native_pairs[0].1.clone().next().unwrap();
+
+        let p_prepared_t = [G1PreparedTarget(G1AffineTarget::constant(&mut builder, p))];
+        let q_t = G2AffineTarget::constant(&mut builder, q);
+        let q_prepared_t = [G2PreparedTarget::from(&mut builder, q_t)];
+
+        let target_pairs = getter_of_prepared_pairs_target(p_prepared_t, q_prepared_t);
+
+        // connect_pairs(&mut builder, &native_pairs, &target_pairs);
 
         let pw = PartialWitness::<F>::new();
         let data = builder.build::<C>();

@@ -1,6 +1,7 @@
 use ark_bls12_381::{Fq, Fq12, Fq2, G1Affine, G2Affine};
 use ark_ec::short_weierstrass::SWCurveConfig;
 use ark_ec::AffineRepr;
+use ark_ff::vec::IntoIter;
 use ark_ff::UniformRand;
 use ark_ff::{BitIteratorBE, Field};
 use ark_std::cfg_chunks_mut;
@@ -158,6 +159,27 @@ pub fn multi_miller_loop(
     }
 
     f
+}
+
+pub fn getter_of_prepared_pairs(
+    a: impl IntoIterator<Item = impl Into<G1Prepared>>,
+    b: impl IntoIterator<Item = impl Into<G2Prepared>>,
+) -> Vec<(G1Prepared, IntoIter<(Fq2, Fq2, Fq2)>)> {
+    use itertools::Itertools;
+
+    let pairs = a
+        .into_iter()
+        .zip_eq(b)
+        .filter_map(|(p, q)| {
+            let (p, q) = (p.into(), q.into());
+            match !p.0.is_zero() && !q.is_zero() {
+                true => Some((p, q.ell_coeffs.into_iter())),
+                false => None,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    pairs
 }
 
 pub fn ell(f: &mut Fq12, g2_coeffs: EllCoeff, p: G1Affine) {

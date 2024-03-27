@@ -30,6 +30,15 @@ impl<F: RichField + Extendable<D>, const D: usize> G1AffineTarget<F, D> {
             infinity: false,
         }
     }
+
+    pub fn connect(builder: &mut CircuitBuilder<F, D>, lhs: &Self, rhs: &Self) {
+        // The only cases in which two points are equal are
+        // 1. infinity is set on both
+        // 2. infinity is not set on both, and their coordinates are equal
+        assert!((lhs.infinity & rhs.infinity) | (!lhs.infinity) & (!rhs.infinity));
+        FqTarget::connect(builder, &lhs.x, &rhs.x);
+        FqTarget::connect(builder, &lhs.y, &rhs.y);
+    }
 }
 
 #[derive(Clone, Debug)]

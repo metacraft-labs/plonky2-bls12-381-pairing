@@ -592,4 +592,24 @@ mod tests {
         dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
+
+    #[test]
+    fn test_conjugate() {
+        let rng = &mut rand::thread_rng();
+        let x: Fq12 = Fq12::rand(rng);
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let x_t = Fq12Target::constant(&mut builder, x);
+
+        let mut x = x;
+        x.conjugate_in_place();
+        let x_t_conjugate = x_t.conjugate(&mut builder);
+        let x_expected_t = Fq12Target::constant(&mut builder, x);
+        Fq12Target::connect(&mut builder, &x_t_conjugate, &x_expected_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
 }
