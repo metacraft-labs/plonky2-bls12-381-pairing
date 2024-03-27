@@ -472,8 +472,8 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::{Fq, Fq2};
-    use ark_ff::{Field, Fp};
+    use ark_bls12_381::{Fq, Fq2, Fq6Config};
+    use ark_ff::{Field, Fp, Fp6Config};
     use ark_std::UniformRand;
     use num_traits::{One, Zero};
     use plonky2::{
@@ -701,6 +701,28 @@ mod tests {
         let x_mul_y_t = Fq2Target::constant(&mut builder, x);
 
         Fq2Target::connect(&mut builder, &x_mul_y_t, &x_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_mul_fp2_by_nonresidue_in_place() {
+        let rng = &mut rand::thread_rng();
+        let x = Fq2::rand(rng);
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let x_t = Fq2Target::constant(&mut builder, x);
+        let mut x = x;
+        Fq6Config::mul_fp2_by_nonresidue_in_place(&mut x);
+
+        let x_t = x_t.mul_by_nonresidue(&mut builder);
+
+        let x_expected_t = Fq2Target::constant(&mut builder, x);
+
+        Fq2Target::connect(&mut builder, &x_expected_t, &x_t);
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();

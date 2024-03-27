@@ -192,72 +192,110 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         }
     }
 
+    pub fn convert_to_fq6(&self) -> (Fq6Target<F, D>, Fq6Target<F, D>) {
+        //                   Fq12
+        //                  /    \
+        //                 /      \
+        //                /        \
+        //               /          \
+        //              /            \
+        //             /              \
+        //            /                \
+        //           c0                c1
+        //        /  |  \            /  |  \
+        //       /   |   \          /   |   \
+        //      c0   c1   c2       c0   c1   c2
+        //   c0 c1 c0 c1 c0 c1  c0 c1  c0 c1 c0 c1
+
+        // c000 = 0 c100 = 1 c010 = 2 c110 = 3 c020 = 4 c120 = 5
+        // c001 = 6 c101 = 7 c011 = 8 c111 = 9 c021 = 10 c121 = 11
+
+        let c000 = &self.coeffs[0];
+        let c001 = &self.coeffs[6];
+        let c010 = &self.coeffs[2];
+        let c011 = &self.coeffs[8];
+        let c020 = &self.coeffs[4];
+        let c021 = &self.coeffs[10];
+        let c100 = &self.coeffs[1];
+        let c101 = &self.coeffs[7];
+        let c110 = &self.coeffs[3];
+        let c111 = &self.coeffs[9];
+        let c120 = &self.coeffs[5];
+        let c121 = &self.coeffs[11];
+
+        (
+            Fq6Target::new(vec![
+                c000.clone(),
+                c010.clone(),
+                c020.clone(),
+                c001.clone(),
+                c011.clone(),
+                c021.clone(),
+            ]),
+            Fq6Target::new(vec![
+                c100.clone(),
+                c110.clone(),
+                c120.clone(),
+                c101.clone(),
+                c111.clone(),
+                c121.clone(),
+            ]),
+        )
+    }
+
+    pub fn from_fq6(c0: Fq6Target<F, D>, c1: Fq6Target<F, D>) -> Self {
+        Self::new(vec![
+            c0.coeffs[0].clone(),
+            c1.coeffs[0].clone(),
+            c0.coeffs[1].clone(),
+            c1.coeffs[1].clone(),
+            c0.coeffs[2].clone(),
+            c1.coeffs[2].clone(),
+            c0.coeffs[3].clone(),
+            c1.coeffs[3].clone(),
+            c0.coeffs[4].clone(),
+            c1.coeffs[4].clone(),
+            c0.coeffs[5].clone(),
+            c1.coeffs[5].clone(),
+        ])
+    }
+
     pub fn mul_by_014(
-        self,
+        &self,
         builder: &mut CircuitBuilder<F, D>,
         c0: &Fq2Target<F, D>,
         c1: &Fq2Target<F, D>,
         c4: &Fq2Target<F, D>,
     ) -> Self {
-        let coeffs = &self.coeffs;
-        let c000 = &coeffs[0]; // w^0 u^0
-        let c001 = &coeffs[6]; // w^0 u^1
-        let c010 = &coeffs[2]; // w^2 u^0
-        let c011 = &coeffs[8]; // w^2 u^1
-        let c020 = &coeffs[4]; // w^4 u^0
-        let c021 = &coeffs[10]; // w^4 u^1
-        let c100 = &coeffs[1]; // w^1 u^0
-        let c101 = &coeffs[7]; // w^1 u^1
-        let c110 = &coeffs[3]; // w^3 u^0
-        let c111 = &coeffs[9]; // w^3 u^1
-        let c120 = &coeffs[5]; // w^5 u^0
-        let c121 = &coeffs[11]; // w^5 u^1
+        let (self_c0, self_c1) = self.convert_to_fq6();
 
-        let fq6_from_fq12_c0 = Fq6Target::new(vec![
-            c000.clone(),
-            c001.clone(),
-            c010.clone(),
-            c011.clone(),
-            c020.clone(),
-            c021.clone(),
-        ]);
-        let fq6_from_fq12_c1 = Fq6Target::new(vec![
-            c100.clone(),
-            c101.clone(),
-            c110.clone(),
-            c111.clone(),
-            c120.clone(),
-            c121.clone(),
-        ]);
-
-        // let fq6_from_fq12_c0 = Fq6Target::new(self.coeffs[0..6].to_vec());
-        // let fq6_from_fq12_c1 = Fq6Target::new(self.coeffs[6..12].to_vec());
-        let temp_fq6_from_fq12_c0 = fq6_from_fq12_c0.clone();
-        let temp_fq6_from_fq12_c1 = fq6_from_fq12_c1.clone();
-        let aa = fq6_from_fq12_c0.mul_by_01(builder, c0, c1);
-        let bb = fq6_from_fq12_c1.mul_by_1(builder, c4);
-        let o = c1.add(builder, c4);
-        let c1 = temp_fq6_from_fq12_c1.add(builder, &temp_fq6_from_fq12_c0);
-        let c1 = c1.mul_by_01(builder, c0, &o);
-        let c1 = c1.sub(builder, &aa);
-        let c1 = c1.sub(builder, &bb);
-        let c0 = bb;
-        let c0 = c0.mul_by_nonresidue(builder);
-        let c0 = c0.add(builder, &aa);
+        let aa = self_c0.clone();
+        let aa = aa.mul_by_01(builder, c0, c1);
+        let bb = self_c1.clone();
+        let bb = bb.mul_by_1(builder, c4);
+        let o = c1;
+        let o = o.add(builder, c4);
+        let self_c1 = self_c1.add(builder, &self_c0);
+        let self_c1 = self_c1.mul_by_01(builder, c0, &o);
+        let self_c1 = self_c1.sub(builder, &aa);
+        let self_c1 = self_c1.sub(builder, &bb);
+        let self_c0 = bb;
+        let self_c0 = self_c0.mul_by_nonresidue(builder);
+        let self_c0 = self_c0.add(builder, &aa);
 
         Self::new(vec![
-            c0.coeffs[0].clone(),
-            c0.coeffs[1].clone(),
-            c0.coeffs[2].clone(),
-            c0.coeffs[3].clone(),
-            c0.coeffs[4].clone(),
-            c0.coeffs[5].clone(),
-            c1.coeffs[0].clone(),
-            c1.coeffs[1].clone(),
-            c1.coeffs[2].clone(),
-            c1.coeffs[3].clone(),
-            c1.coeffs[4].clone(),
-            c1.coeffs[5].clone(),
+            self_c0.coeffs[0].clone(),
+            self_c1.coeffs[0].clone(),
+            self_c0.coeffs[1].clone(),
+            self_c1.coeffs[1].clone(),
+            self_c0.coeffs[2].clone(),
+            self_c1.coeffs[2].clone(),
+            self_c0.coeffs[3].clone(),
+            self_c1.coeffs[3].clone(),
+            self_c0.coeffs[4].clone(),
+            self_c1.coeffs[4].clone(),
+            self_c0.coeffs[5].clone(),
+            self_c1.coeffs[5].clone(),
         ])
     }
 
@@ -410,7 +448,7 @@ mod tests {
         },
     };
 
-    use crate::fields::fq2_target::Fq2Target;
+    use crate::fields::{fq2_target::Fq2Target, fq6_target::Fq6Target};
 
     use super::{from_biguint_to_fq, Fq12Target};
 
@@ -487,26 +525,67 @@ mod tests {
     }
 
     #[test]
-    fn _test_mul_by_014() {
+    fn test_mul_by_014() {
         let rng = &mut rand::thread_rng();
         let x: Fq12 = Fq12::rand(rng);
         let c0: Fq2 = Fq2::rand(rng);
         let c1: Fq2 = Fq2::rand(rng);
         let c4: Fq2 = Fq2::rand(rng);
-        let mut r_expected = x;
-        r_expected.mul_by_014(&c0, &c1, &c4);
-
         let config = CircuitConfig::pairing_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
         let c0_t = Fq2Target::constant(&mut builder, c0);
         let c1_t = Fq2Target::constant(&mut builder, c1);
         let c4_t = Fq2Target::constant(&mut builder, c4);
         let r_t = Fq12Target::constant(&mut builder, x);
+        let mut r_expected = x;
+        r_expected.mul_by_014(&c0, &c1, &c4);
         let r_t = r_t.mul_by_014(&mut builder, &c0_t, &c1_t, &c4_t);
 
         let r_expected_t = Fq12Target::constant(&mut builder, r_expected);
 
         Fq12Target::connect(&mut builder, &r_t, &r_expected_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_from_fq6_to_fq12_casting() {
+        let rng = &mut rand::thread_rng();
+        let x: Fq12 = Fq12::rand(rng);
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let c0 = Fq6Target::constant(&mut builder, x.c0);
+        let c1 = Fq6Target::constant(&mut builder, x.c1);
+        let r_t = Fq12Target::from_fq6(c0, c1);
+        let r_expected_t = Fq12Target::constant(&mut builder, x);
+
+        Fq12Target::connect(&mut builder, &r_t, &r_expected_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_convert_to_fq6() {
+        let rng = &mut rand::thread_rng();
+        let x: Fq12 = Fq12::rand(rng);
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+
+        let r_t = Fq12Target::constant(&mut builder, x);
+
+        let (c0_t, c1_t) = r_t.convert_to_fq6();
+        let c0_expected_t = Fq6Target::constant(&mut builder, x.c0);
+        let c1_expected_t = Fq6Target::constant(&mut builder, x.c1);
+
+        Fq6Target::connect(&mut builder, &c0_t, &c0_expected_t);
+        Fq6Target::connect(&mut builder, &c1_t, &c1_expected_t);
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();

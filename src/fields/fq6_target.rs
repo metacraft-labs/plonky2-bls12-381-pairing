@@ -238,7 +238,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         ])
     }
 
-    // COEFFSS
     pub fn mul_by_1(self, builder: &mut CircuitBuilder<F, D>, c1: &Fq2Target<F, D>) -> Self {
         let fq6_c00 = &self.coeffs[0];
         let fq6_c10 = &self.coeffs[1];
@@ -251,34 +250,34 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq6Target<F, D> {
         let fq6_c1 = Fq2Target::new(vec![fq6_c10.clone(), fq6_c11.clone()]);
         let fq6_c2 = Fq2Target::new(vec![fq6_c20.clone(), fq6_c21.clone()]);
 
-        //
         let b_b = fq6_c1.clone();
-        let b_b = b_b.mul(builder, c1);
-        // let mut tmp = self.c1;
-        // tmp.add_assign(&self.c2);
+        let b_b = b_b.mul(builder, &c1);
 
-        // t1.mul_assign(&tmp);
-        // t1.sub_assign(&b_b);
-        // P::mul_fp2_by_nonresidue_in_place(&mut t1);
+        let t1 = c1;
+        let tmp = fq6_c1.clone();
+        let tmp = tmp.add(builder, &fq6_c2);
 
-        //
+        let t1 = t1.mul(builder, &tmp);
+        let t1 = t1.sub(builder, &b_b);
+        let t1 = t1.mul_by_nonresidue(builder);
 
-        let c0 = fq6_c2.mul(builder, c1);
-        let c0 = c0.mul_by_nonresidue(builder);
-        let c1 = fq6_c0.mul(builder, &c1);
-        let c2 = fq6_c1.mul(builder, &c1);
+        let t2 = c1;
+        let tmp = fq6_c0;
+        let tmp = tmp.add(builder, &fq6_c1);
+
+        let t2 = t2.mul(builder, &tmp);
+        let t2 = t2.sub(builder, &b_b);
 
         Self::new(vec![
-            c0.coeffs[0].clone(),
-            c1.coeffs[0].clone(),
-            c2.coeffs[0].clone(),
-            c0.coeffs[1].clone(),
-            c1.coeffs[1].clone(),
-            c2.coeffs[1].clone(),
+            t1.coeffs[0].clone(),
+            t2.coeffs[0].clone(),
+            b_b.coeffs[0].clone(),
+            t1.coeffs[1].clone(),
+            t2.coeffs[1].clone(),
+            b_b.coeffs[1].clone(),
         ])
     }
 
-    // COEFFSS
     /// Multiply by quadratic nonresidue v.
     pub fn mul_by_nonresidue(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
         // Given a + bv + cv^2, this produces
@@ -387,8 +386,8 @@ impl<F: RichField + Extendable<D>, const D: usize> SimpleGenerator<F>
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::{Fq2, Fq6};
-    use ark_ff::{Field, UniformRand};
+    use ark_bls12_381::{Fq12Config, Fq2, Fq6};
+    use ark_ff::{Field, Fp12Config, UniformRand};
     use plonky2::{
         field::goldilocks_field::GoldilocksField,
         iop::witness::PartialWitness,
@@ -467,6 +466,29 @@ mod tests {
         x.mul_by_1(&c1);
 
         let x_t = x_t.mul_by_1(&mut builder, &x_c1);
+
+        let x_expected_t = Fq6Target::constant(&mut builder, x);
+
+        Fq6Target::connect(&mut builder, &x_t, &x_expected_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_mul_fq6_by_nonresidue_in_place() {
+        let rng = &mut rand::thread_rng();
+        let x: Fq6 = Fq6::rand(rng);
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let x_t = Fq6Target::constant(&mut builder, x);
+        let mut x = x;
+        Fq12Config::mul_fp6_by_nonresidue_in_place(&mut x);
+
+        let x_t = x_t.mul_by_nonresidue(&mut builder);
 
         let x_expected_t = Fq6Target::constant(&mut builder, x);
 
