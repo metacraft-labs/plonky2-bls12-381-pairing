@@ -1,6 +1,8 @@
 use ark_bls12_381::{Fq, Fq12, Fq2, G1Affine, G2Affine};
 use ark_ec::short_weierstrass::SWCurveConfig;
 use ark_ec::AffineRepr;
+use ark_ff::vec::IntoIter;
+use ark_ff::UniformRand;
 use ark_ff::{BitIteratorBE, Field};
 use ark_std::cfg_chunks_mut;
 use ark_std::One;
@@ -22,13 +24,30 @@ impl G2Prepared {
 pub(crate) type EllCoeff = (Fq2, Fq2, Fq2);
 
 pub struct G2Projective {
-    x: Fq2,
-    y: Fq2,
-    z: Fq2,
+    pub x: Fq2,
+    pub y: Fq2,
+    pub z: Fq2,
 }
 
 impl G2Projective {
-    fn double_in_place(&mut self, two_inv: &Fq) -> EllCoeff {
+    pub fn empty() -> Self {
+        Self {
+            x: Fq2::ZERO,
+            y: Fq2::ZERO,
+            z: Fq2::ZERO,
+        }
+    }
+
+    pub fn random() -> Self {
+        let rng = &mut rand::thread_rng();
+        Self {
+            x: Fq2::rand(rng),
+            y: Fq2::rand(rng),
+            z: Fq2::rand(rng),
+        }
+    }
+
+    pub fn double_in_place(&mut self, two_inv: &Fq) -> EllCoeff {
         let mut a = self.x * &self.y;
         a.mul_assign_by_fp(two_inv);
         let b = self.y.square();
@@ -49,7 +68,7 @@ impl G2Projective {
         (i, j.double() + &j, -h)
     }
 
-    fn add_in_place(&mut self, q: &G2Affine) -> EllCoeff {
+    pub fn add_in_place(&mut self, q: &G2Affine) -> EllCoeff {
         let (qx, qy) = q.xy().unwrap();
         let theta = self.y - &(qy * &self.z);
         let lambda = self.x - &(qx * &self.z);
@@ -140,6 +159,27 @@ pub fn multi_miller_loop(
     }
 
     f
+}
+
+pub fn getter_of_prepared_pairs(
+    a: impl IntoIterator<Item = impl Into<G1Prepared>>,
+    b: impl IntoIterator<Item = impl Into<G2Prepared>>,
+) -> Vec<(G1Prepared, IntoIter<(Fq2, Fq2, Fq2)>)> {
+    use itertools::Itertools;
+
+    let pairs = a
+        .into_iter()
+        .zip_eq(b)
+        .filter_map(|(p, q)| {
+            let (p, q) = (p.into(), q.into());
+            match !p.0.is_zero() && !q.is_zero() {
+                true => Some((p, q.ell_coeffs.into_iter())),
+                false => None,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    pairs
 }
 
 pub fn ell(f: &mut Fq12, g2_coeffs: EllCoeff, p: G1Affine) {
