@@ -35,17 +35,17 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
         })
         .collect::<Vec<_>>();
 
-    let mut f: Fq12Target<F, D> = cfg_chunks_mut!(pairs, 4)
+    let f: Fq12Target<F, D> = cfg_chunks_mut!(pairs, 4)
         .map(|pairs| {
             let mut f = Fq12Target::constant(builder, Fq12::one());
             for i in BitIteratorBE::without_leading_zeros([BLS_X]).skip(1) {
-                let f = f.mul(builder, &f); // square in place
+                f = f.mul(builder, &f); // square in place
                 for (p, coeffs) in pairs.iter_mut() {
-                    ell_target(builder, &f, coeffs.next().unwrap(), p.0.clone());
+                    f = ell_target(builder, &f, coeffs.next().unwrap(), p.0.clone());
                 }
                 if i {
                     for (p, coeffs) in pairs.iter_mut() {
-                        ell_target(builder, &f, coeffs.next().unwrap(), p.0.clone());
+                        f = ell_target(builder, &f, coeffs.next().unwrap(), p.0.clone());
                     }
                 }
             }
