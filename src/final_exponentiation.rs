@@ -13,7 +13,7 @@ pub fn easy_part<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
     a: &Fq12Target<F, D>,
 ) -> Fq12Target<F, D> {
-    let f1 = a.confugate(builder);
+    let f1 = a.conjugate(builder);
     let f2 = f1.div(builder, &a);
     let f3 = frobenius_map(builder, &f2, 2);
     let f = f3.mul(builder, &f2);
@@ -26,27 +26,27 @@ pub fn hard_part_target<F: RichField + Extendable<D>, const D: usize>(
 ) -> Fq12Target<F, D> {
     let mut y0 = r.mul(builder, &r); // optimize square
     let mut y1 = pow_target(builder, r.clone(), vec![BLS_X]);
-    y1 = y1.confugate(builder); // Rename to conjugate in the other repo
+    y1 = y1.conjugate(builder); // Rename to conjugate in the other repo
     let mut y2 = r.clone();
-    y2 = y2.confugate(builder);
+    y2 = y2.conjugate(builder);
 
     y1 = y1.mul(builder, &y2);
     y2 = pow_target(builder, y1.clone(), vec![BLS_X]);
-    y2 = y2.confugate(builder);
-    y1 = y1.confugate(builder);
+    y2 = y2.conjugate(builder);
+    y1 = y1.conjugate(builder);
     y1 = y1.mul(builder, &y2);
     y2 = pow_target(builder, y1.clone(), vec![BLS_X]);
-    y2 = y2.confugate(builder);
+    y2 = y2.conjugate(builder);
     y1 = frobenius_map(builder, &y1, 1);
     y1 = y1.mul(builder, &y2);
     let r = r.mul(builder, &y0);
     y0 = pow_target(builder, y1.clone(), vec![BLS_X]);
-    y0 = y0.confugate(builder);
+    y0 = y0.conjugate(builder);
     y2 = pow_target(builder, y0, vec![BLS_X]);
-    y2 = y2.confugate(builder);
+    y2 = y2.conjugate(builder);
     y0 = y1.clone();
     y0 = frobenius_map(builder, &y0, 2);
-    y1 = y1.confugate(builder);
+    y1 = y1.conjugate(builder);
     y1 = y1.mul(builder, &y2);
     y1 = y1.mul(builder, &y0);
     let r = r.mul(builder, &y1);
