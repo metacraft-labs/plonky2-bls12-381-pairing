@@ -1,5 +1,3 @@
-use std::iter::Product;
-
 use ark_bls12_381::{Fq, Fq12};
 use ark_ff::Field;
 use itertools::Itertools;
@@ -12,7 +10,7 @@ use plonky2::{
         target::{BoolTarget, Target},
         witness::{PartitionWitness, WitnessWrite},
     },
-    plonk::{circuit_builder::CircuitBuilder, circuit_data::CircuitConfig},
+    plonk::circuit_builder::CircuitBuilder,
     util::serialization::{Buffer, IoError},
 };
 use plonky2_ecdsa::gadgets::{
@@ -20,12 +18,9 @@ use plonky2_ecdsa::gadgets::{
     nonnative::CircuitBuilderNonNative,
 };
 
-use crate::fields::{
-    fq_target::FqTarget,
-    helpers::{from_biguint_to_fq, MyFq12},
-};
+use crate::utils::helpers::{from_biguint_to_fq, MyFq12};
 
-use super::{fq2_target::Fq2Target, fq6_target::Fq6Target};
+use super::{fq2_target::Fq2Target, fq6_target::Fq6Target, fq_target::FqTarget};
 
 #[derive(Debug, Clone)]
 pub struct Fq12Target<F: RichField + Extendable<D>, const D: usize> {
@@ -337,6 +332,7 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         Self::select(builder, &muled, &self, flag)
     }
 
+    /// Iterates over the entire iterator, multiplying all the elements
     pub fn multiply_elements(
         builder: &mut CircuitBuilder<F, D>,
         iter: impl Iterator<Item = Self>,
@@ -355,47 +351,6 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         }
 
         result
-    }
-
-    pub fn test_fold(iter: impl Iterator<Item = Self>) -> Option<Self> {
-        let config = CircuitConfig::pairing_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-        let mut result: Option<Self> = None;
-
-        for item in iter {
-            match result {
-                Some(val) => {
-                    result = Some(val.mul(&mut builder, &item));
-                }
-                None => {
-                    result = Some(item);
-                }
-            }
-        }
-
-        result
-    }
-}
-pub fn get_value_at_index<T>(iter: &mut impl Iterator<Item = T>, index: usize) -> Option<T> {
-    iter.nth(index)
-}
-
-impl<F: RichField + Extendable<D>, const D: usize> Product for Fq12Target<F, D> {
-    // fn product<I: Iterator<Item = Self>>(mut iter: I) -> Self {
-    //     let config = CircuitConfig::pairing_config();
-    //     let mut builder = CircuitBuilder::<F, D>::new(config);
-    //     // let one = Fq12::ONE;
-    //     // let one = Fq12Target::constant(&mut builder, one);
-    //     let x = get_value_at_index(&mut iter, 0).unwrap();
-    //     let x = iter.fold(x, |a, b| a.mul(&mut builder, &b));
-    //     // let result = Fq12Target::multiply_elements(&mut builder, iter);
-
-    //     x
-    // }
-    fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
-        let config = CircuitConfig::pairing_config();
-        let mut builder = CircuitBuilder::<F, D>::new(config);
-        Fq12Target::test_fold(iter).unwrap()
     }
 }
 
@@ -571,7 +526,6 @@ mod tests {
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 
@@ -598,7 +552,6 @@ mod tests {
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 
@@ -618,7 +571,6 @@ mod tests {
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 
@@ -640,7 +592,6 @@ mod tests {
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 
@@ -660,12 +611,11 @@ mod tests {
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 
     #[test]
-    fn test_product() {
+    fn test_multiply_elements() {
         let rng = &mut rand::thread_rng();
         let x: Fq12 = Fq12::rand(rng);
         let y: Fq12 = Fq12::rand(rng);
@@ -678,20 +628,15 @@ mod tests {
 
         let result = x * y * z;
         let result_t = Fq12Target::constant(&mut builder, result);
-        let expected_result = x_t.mul(&mut builder, &y_t);
-        let expected_result = expected_result.mul(&mut builder, &z_t);
 
         let expected_result_array = [x_t, y_t, z_t].into_iter();
-        let x = Fq12Target::multiply_elements(&mut builder, expected_result_array.clone()).unwrap();
-        let expected_product: Fq12Target<F, D> = expected_result_array.product();
+        let expected_result =
+            Fq12Target::multiply_elements(&mut builder, expected_result_array.clone()).unwrap();
 
         Fq12Target::connect(&mut builder, &result_t, &expected_result);
-        Fq12Target::connect(&mut builder, &result_t, &x);
-        // Fq12Target::connect(&mut builder, &result_t, &expected_product);
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 }

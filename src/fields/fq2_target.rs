@@ -19,9 +19,9 @@ use plonky2_ecdsa::gadgets::{
     nonnative::CircuitBuilderNonNative,
 };
 
-use crate::fields::{
-    fq_target::FqTarget,
-    helpers::{from_biguint_to_fq, sgn0_fq2},
+use crate::{
+    fields::fq_target::FqTarget,
+    utils::helpers::{from_biguint_to_fq, sgn0_fq2},
 };
 
 #[derive(Debug, Clone)]
@@ -486,7 +486,7 @@ mod tests {
     };
     use rand::Rng;
 
-    use crate::fields::{fq_target::FqTarget, helpers::sgn0_fq2};
+    use crate::{fields::fq_target::FqTarget, utils::helpers::sgn0_fq2};
 
     use super::Fq2Target;
 
@@ -531,7 +531,6 @@ mod tests {
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 

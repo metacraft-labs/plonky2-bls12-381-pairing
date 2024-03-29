@@ -231,7 +231,6 @@ mod tests {
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 
@@ -254,7 +253,6 @@ mod tests {
         G2ProjectiveTarget::connect(&mut builder, &expected_g2, &rand_g2_t);
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 }

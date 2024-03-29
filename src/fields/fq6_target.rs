@@ -18,9 +18,9 @@ use plonky2_ecdsa::gadgets::{
     nonnative::CircuitBuilderNonNative,
 };
 
-use super::{
-    fq2_target::Fq2Target, fq_target::FqTarget, helpers::from_biguint_to_fq, my_fq6::MyFq6,
-};
+use crate::utils::{helpers::from_biguint_to_fq, my_fq6::MyFq6};
+
+use super::{fq2_target::Fq2Target, fq_target::FqTarget};
 
 #[derive(Debug, Clone)]
 pub struct Fq6Target<F: RichField + Extendable<D>, const D: usize> {
@@ -421,7 +421,6 @@ mod tests {
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 
@@ -448,7 +447,6 @@ mod tests {
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 
@@ -473,7 +471,6 @@ mod tests {
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 
@@ -496,7 +493,6 @@ mod tests {
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 }
