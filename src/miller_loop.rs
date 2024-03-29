@@ -24,8 +24,6 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
 ) -> Fq12Target<F, D> {
     use itertools::Itertools;
 
-    println!("[1]");
-
     let mut pairs = a
         .into_iter()
         .zip_eq(b)
@@ -37,8 +35,6 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
             }
         })
         .collect::<Vec<_>>();
-
-    println!("[2]");
     let mut pairs_f_storage: Vec<Fq12Target<F, D>> = Vec::new();
 
     for pairs in cfg_chunks_mut!(pairs, 4) {
@@ -77,14 +73,10 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
     //     })
     //     .product();
 
-    println!("[3]");
-
     // let mut f = Fq12Target::constant(builder, Fq12::one());
     if BLS_X_IS_NEGATIVE {
         f.conjugate(builder);
     }
-
-    println!("[4]");
 
     f
 }
@@ -166,7 +158,9 @@ mod tests {
         },
         fields::{fq12_target::Fq12Target, fq2_target::Fq2Target},
         miller_loop::multi_miller_loop,
-        native::miller_loop::{ell, getter_of_prepared_pairs, G1Prepared, G2Prepared},
+        native::miller_loop::{
+            ell, getter_of_prepared_pairs, multi_miller_loop_native, G1Prepared, G2Prepared,
+        },
     };
 
     use super::{ell_target, getter_of_prepared_pairs_target};
@@ -182,6 +176,8 @@ mod tests {
         let rng = &mut rand::thread_rng();
         let p = G1Affine::rand(rng);
         let q = G2Affine::rand(rng);
+        let multi_miller_loop_result =
+            multi_miller_loop_native([G1Prepared(p)], [G2Prepared::from(q)]);
         let r_expected = ark_bls12_381::Bls12_381::miller_loop(p, q).0;
 
         let p_prepared_t = [G1PreparedTarget(G1AffineTarget::constant(&mut builder, p))];
@@ -190,16 +186,13 @@ mod tests {
 
         let r_t = multi_miller_loop(&mut builder, p_prepared_t, q_prepared_t);
 
-        let r_expected_t = Fq12Target::constant(&mut builder, r_expected);
-
-        println!("[5]");
+        let r_expected_t = Fq12Target::constant(&mut builder, multi_miller_loop_result);
 
         Fq12Target::connect(&mut builder, &r_t, &r_expected_t);
 
         let pw = PartialWitness::<F>::new();
         let data = builder.build::<C>();
         dbg!(data.common.degree_bits());
-        println!("[6]");
         let _proof = data.prove(pw);
     }
 

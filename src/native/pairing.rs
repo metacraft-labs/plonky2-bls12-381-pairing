@@ -2,14 +2,14 @@ use ark_bls12_381::Fq12;
 
 use super::{
     final_exponentiation::final_exponentiation,
-    miller_loop::{multi_miller_loop, G1Prepared, G2Prepared},
+    miller_loop::{multi_miller_loop_native, G1Prepared, G2Prepared},
 };
 
 pub fn native_pairing(
     a: impl IntoIterator<Item = impl Into<G1Prepared>>,
     b: impl IntoIterator<Item = impl Into<G2Prepared>>,
 ) -> Fq12 {
-    final_exponentiation(multi_miller_loop(a, b).into())
+    final_exponentiation(multi_miller_loop_native(a, b).into())
 }
 
 #[cfg(test)]
