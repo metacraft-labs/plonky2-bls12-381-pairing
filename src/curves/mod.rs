@@ -1,1 +1,2 @@
-pub mod g2_curve_target;
+pub mod g1;
+pub mod g2;

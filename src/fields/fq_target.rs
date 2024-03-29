@@ -20,12 +20,10 @@ use plonky2_ecdsa::gadgets::{
 use plonky2_u32::gadgets::{arithmetic_u32::U32Target, range_check::range_check_u32_circuit};
 use std::marker::PhantomData;
 
-use crate::fields::{
-    bls12_381base::Bls12_381Base,
-    helpers::{from_biguint_to_fq, sgn0_fq},
+use crate::{
+    fields::bls12_381base::Bls12_381Base,
+    utils::helpers::{from_biguint_to_fq, get_naf, sgn0_fq},
 };
-
-use super::helpers::get_naf;
 
 #[derive(Clone, Debug)]
 pub struct FqTarget<F: RichField + Extendable<D>, const D: usize> {
@@ -353,7 +351,7 @@ mod tests {
     };
     use rand::Rng;
 
-    use crate::fields::helpers::sgn0_fq;
+    use crate::utils::helpers::sgn0_fq;
 
     use super::FqTarget;
 
@@ -485,7 +483,6 @@ mod tests {
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
         let _proof = data.prove(pw);
-        dbg!(data.common.degree_bits());
     }
 
     #[test]
