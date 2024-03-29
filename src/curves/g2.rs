@@ -42,14 +42,6 @@ struct G2ProjectiveTarget<F: RichField + Extendable<D>, const D: usize> {
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> G2ProjectiveTarget<F, D> {
-    pub fn empty(builder: &mut CircuitBuilder<F, D>) -> Self {
-        Self {
-            x: Fq2Target::empty(builder),
-            y: Fq2Target::empty(builder),
-            z: Fq2Target::empty(builder),
-        }
-    }
-
     pub fn constant(builder: &mut CircuitBuilder<F, D>, new_g2_projective: &G2Projective) -> Self {
         Self {
             x: Fq2Target::constant(builder, new_g2_projective.x),

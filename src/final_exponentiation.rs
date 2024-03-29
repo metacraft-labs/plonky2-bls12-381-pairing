@@ -26,7 +26,7 @@ pub fn hard_part_target<F: RichField + Extendable<D>, const D: usize>(
 ) -> Fq12Target<F, D> {
     let mut y0 = r.mul(builder, &r); // optimize square
     let mut y1 = pow_target(builder, r.clone(), vec![BLS_X]);
-    y1 = y1.conjugate(builder); // Rename to conjugate in the other repo
+    y1 = y1.conjugate(builder);
     let mut y2 = r.clone();
     y2 = y2.conjugate(builder);
 
