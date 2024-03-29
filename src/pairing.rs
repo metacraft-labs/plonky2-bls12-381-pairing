@@ -6,6 +6,7 @@ use plonky2::{
 use crate::{
     curves::{g1::G1PreparedTarget, g2::G2PreparedTarget},
     fields::fq12_target::Fq12Target,
+    final_exponentiation::final_exponentiation,
     miller_loop::multi_miller_loop,
 };
 
@@ -15,9 +16,7 @@ pub fn pairing<F: RichField + Extendable<D>, const D: usize>(
     b: impl IntoIterator<Item = impl Into<G2PreparedTarget<F, D>>>,
 ) -> Fq12Target<F, D> {
     let f = multi_miller_loop(builder, a, b);
-    // final_exp_circuit::<F, D>(builder, multi_miller_loop(builder, a, b))
-
-    f
+    final_exponentiation::<F, D>(builder, f)
 }
 
 #[cfg(test)]
