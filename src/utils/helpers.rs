@@ -243,7 +243,7 @@ mod tests {
     use ark_bls12_381::Fq12;
     use ark_std::UniformRand;
 
-    use crate::fields::helpers::MyFq12;
+    use crate::utils::helpers::MyFq12;
 
     #[test]
     fn test_myfq12() {

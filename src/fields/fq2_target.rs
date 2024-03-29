@@ -19,9 +19,9 @@ use plonky2_ecdsa::gadgets::{
     nonnative::CircuitBuilderNonNative,
 };
 
-use crate::fields::{
-    fq_target::FqTarget,
-    helpers::{from_biguint_to_fq, sgn0_fq2},
+use crate::{
+    fields::fq_target::FqTarget,
+    utils::helpers::{from_biguint_to_fq, sgn0_fq2},
 };
 
 #[derive(Debug, Clone)]
@@ -213,6 +213,38 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
     pub fn div(&self, builder: &mut CircuitBuilder<F, D>, rhs: &Self) -> Self {
         let inv = rhs.inv(builder);
         self.mul(builder, &inv)
+    }
+
+    pub fn simple_square(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        self.mul(builder, &self)
+    }
+
+    pub fn double(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        self.add(builder, &self)
+    }
+
+    pub fn mul_assign_by_fp(
+        &self,
+        builder: &mut CircuitBuilder<F, D>,
+        other: FqTarget<F, D>,
+    ) -> Self {
+        let c0 = self.coeffs[0].clone().mul(builder, &other);
+        let c1 = self.coeffs[1].clone().mul(builder, &other);
+        Self { coeffs: [c0, c1] }
+    }
+
+    pub fn mul_by_nonresidue(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
+        // Multiply a + bu by u + 1, getting
+        // au + a + bu^2 + bu
+        // and because u^2 = -1, we get
+        // (a - b) + (a + b)u
+
+        Self {
+            coeffs: [
+                self.coeffs[0].sub(builder, &self.coeffs[1]),
+                self.coeffs[0].add(builder, &self.coeffs[1]),
+            ],
+        }
     }
 
     pub fn conjugate(&self, builder: &mut CircuitBuilder<F, D>) -> Self {
@@ -440,8 +472,8 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq2Target<F, D> {
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::{Fq, Fq2};
-    use ark_ff::Field;
+    use ark_bls12_381::{Fq, Fq2, Fq6Config};
+    use ark_ff::{Field, Fp, Fp6Config};
     use ark_std::UniformRand;
     use num_traits::{One, Zero};
     use plonky2::{
@@ -454,7 +486,7 @@ mod tests {
     };
     use rand::Rng;
 
-    use crate::fields::helpers::sgn0_fq2;
+    use crate::{fields::fq_target::FqTarget, utils::helpers::sgn0_fq2};
 
     use super::Fq2Target;
 
@@ -499,7 +531,6 @@ mod tests {
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
-        dbg!(data.common.degree_bits());
         let _proof = data.prove(pw);
     }
 
@@ -645,6 +676,52 @@ mod tests {
         let expected_sqrt_t = Fq2Target::constant(&mut builder, expected_sqrt);
 
         Fq2Target::connect(&mut builder, &sqrt_t, &expected_sqrt_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_mul_assign_by_fp() {
+        let rng = &mut rand::thread_rng();
+        let x = Fq2::rand(rng);
+        let y = Fp::rand(rng);
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let x_t = Fq2Target::constant(&mut builder, x);
+        let y_t = FqTarget::constant(&mut builder, y);
+
+        let mut x = x;
+        x.mul_assign_by_fp(&y);
+        let x_t = x_t.mul_assign_by_fp(&mut builder, y_t);
+
+        let x_mul_y_t = Fq2Target::constant(&mut builder, x);
+
+        Fq2Target::connect(&mut builder, &x_mul_y_t, &x_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_mul_fp2_by_nonresidue_in_place() {
+        let rng = &mut rand::thread_rng();
+        let x = Fq2::rand(rng);
+
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let x_t = Fq2Target::constant(&mut builder, x);
+        let mut x = x;
+        Fq6Config::mul_fp2_by_nonresidue_in_place(&mut x);
+
+        let x_t = x_t.mul_by_nonresidue(&mut builder);
+
+        let x_expected_t = Fq2Target::constant(&mut builder, x);
+
+        Fq2Target::connect(&mut builder, &x_expected_t, &x_t);
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();
