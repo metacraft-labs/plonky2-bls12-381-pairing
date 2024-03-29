@@ -336,15 +336,66 @@ impl<F: RichField + Extendable<D>, const D: usize> Fq12Target<F, D> {
         let muled = self.mul(builder, x);
         Self::select(builder, &muled, &self, flag)
     }
+
+    fn multiply_elements(
+        builder: &mut CircuitBuilder<F, D>,
+        iter: impl Iterator<Item = Self>,
+    ) -> Option<Self> {
+        let mut result: Option<Self> = None;
+
+        for item in iter {
+            match result {
+                Some(val) => {
+                    result = Some(val.mul(builder, &item));
+                }
+                None => {
+                    result = Some(item);
+                }
+            }
+        }
+
+        result
+    }
+
+    pub fn test_fold(iter: impl Iterator<Item = Self>) -> Option<Self> {
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let mut result: Option<Self> = None;
+
+        for item in iter {
+            match result {
+                Some(val) => {
+                    result = Some(val.mul(&mut builder, &item));
+                }
+                None => {
+                    result = Some(item);
+                }
+            }
+        }
+
+        result
+    }
+}
+pub fn get_value_at_index<T>(iter: &mut impl Iterator<Item = T>, index: usize) -> Option<T> {
+    iter.nth(index)
 }
 
 impl<F: RichField + Extendable<D>, const D: usize> Product for Fq12Target<F, D> {
+    // fn product<I: Iterator<Item = Self>>(mut iter: I) -> Self {
+    //     let config = CircuitConfig::pairing_config();
+    //     let mut builder = CircuitBuilder::<F, D>::new(config);
+    //     // let one = Fq12::ONE;
+    //     // let one = Fq12Target::constant(&mut builder, one);
+    //     let x = get_value_at_index(&mut iter, 0).unwrap();
+    //     let x = iter.fold(x, |a, b| a.mul(&mut builder, &b));
+    //     // let result = Fq12Target::multiply_elements(&mut builder, iter);
+
+    //     x
+    // }
     fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
         let config = CircuitConfig::pairing_config();
         let mut builder = CircuitBuilder::<F, D>::new(config);
-        iter.fold(Fq12Target::empty(&mut builder), |a, b| {
-            a.mul(&mut builder, &b)
-        })
+        Fq12Target::test_fold(iter).unwrap()
     }
 }
 
@@ -606,6 +657,37 @@ mod tests {
         let x_t_conjugate = x_t.conjugate(&mut builder);
         let x_expected_t = Fq12Target::constant(&mut builder, x);
         Fq12Target::connect(&mut builder, &x_t_conjugate, &x_expected_t);
+
+        let pw = PartialWitness::new();
+        let data = builder.build::<C>();
+        dbg!(data.common.degree_bits());
+        let _proof = data.prove(pw);
+    }
+
+    #[test]
+    fn test_product() {
+        let rng = &mut rand::thread_rng();
+        let x: Fq12 = Fq12::rand(rng);
+        let y: Fq12 = Fq12::rand(rng);
+        let z: Fq12 = Fq12::rand(rng);
+        let config = CircuitConfig::pairing_config();
+        let mut builder = CircuitBuilder::<F, D>::new(config);
+        let x_t = Fq12Target::constant(&mut builder, x);
+        let y_t = Fq12Target::constant(&mut builder, y);
+        let z_t = Fq12Target::constant(&mut builder, z);
+
+        let result = x * y * z;
+        let result_t = Fq12Target::constant(&mut builder, result);
+        let expected_result = x_t.mul(&mut builder, &y_t);
+        let expected_result = expected_result.mul(&mut builder, &z_t);
+
+        let expected_result_array = [x_t, y_t, z_t].into_iter();
+        let x = Fq12Target::test_fold(expected_result_array.clone()).unwrap();
+        let expected_product: Fq12Target<F, D> = expected_result_array.product();
+
+        Fq12Target::connect(&mut builder, &result_t, &expected_result);
+        Fq12Target::connect(&mut builder, &result_t, &x);
+        Fq12Target::connect(&mut builder, &result_t, &expected_product);
 
         let pw = PartialWitness::new();
         let data = builder.build::<C>();

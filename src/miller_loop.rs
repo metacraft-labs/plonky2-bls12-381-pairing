@@ -24,6 +24,8 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
 ) -> Fq12Target<F, D> {
     use itertools::Itertools;
 
+    println!("[1]");
+
     let mut pairs = a
         .into_iter()
         .zip_eq(b)
@@ -36,27 +38,52 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
         })
         .collect::<Vec<_>>();
 
-    let f: Fq12Target<F, D> = cfg_chunks_mut!(pairs, 4)
-        .map(|pairs| {
-            let mut f = Fq12Target::constant(builder, Fq12::one());
-            for i in BitIteratorBE::without_leading_zeros([BLS_X]).skip(1) {
-                f = f.mul(builder, &f); // square in place
+    println!("[2]");
+
+    let pairs_f_storage = cfg_chunks_mut!(pairs, 4).map(|pairs| {
+        let mut f = Fq12Target::constant(builder, Fq12::one());
+        for i in BitIteratorBE::without_leading_zeros([BLS_X]).skip(1) {
+            f = f.mul(builder, &f); // square in place
+            for (p, coeffs) in pairs.iter_mut() {
+                f = ell_target(builder, &f, coeffs.next().unwrap(), p.0.clone());
+            }
+            if i {
                 for (p, coeffs) in pairs.iter_mut() {
                     f = ell_target(builder, &f, coeffs.next().unwrap(), p.0.clone());
                 }
-                if i {
-                    for (p, coeffs) in pairs.iter_mut() {
-                        f = ell_target(builder, &f, coeffs.next().unwrap(), p.0.clone());
-                    }
-                }
             }
-            f
-        })
-        .product();
+        }
+        f
+    });
 
+    let f = Fq12Target::test_fold(pairs_f_storage).unwrap();
+
+    // let f: Fq12Target<F, D> = cfg_chunks_mut!(pairs, 4)
+    //     .map(|pairs| {
+    //         let mut f = Fq12Target::constant(builder, Fq12::one());
+    //         // for i in BitIteratorBE::without_leading_zeros([BLS_X]).skip(1) {
+    //         //     f = f.mul(builder, &f); // square in place
+    //         //     for (p, coeffs) in pairs.iter_mut() {
+    //         //         f = ell_target(builder, &f, coeffs.next().unwrap(), p.0.clone());
+    //         //     }
+    //         //     if i {
+    //         //         for (p, coeffs) in pairs.iter_mut() {
+    //         //             f = ell_target(builder, &f, coeffs.next().unwrap(), p.0.clone());
+    //         //         }
+    //         //     }
+    //         // }
+    //         f
+    //     })
+    //     .product();
+
+    println!("[3]");
+
+    // let mut f = Fq12Target::constant(builder, Fq12::one());
     if BLS_X_IS_NEGATIVE {
         f.conjugate(builder);
     }
+
+    println!("[4]");
 
     f
 }
@@ -164,11 +191,14 @@ mod tests {
 
         let r_expected_t = Fq12Target::constant(&mut builder, r_expected);
 
-        // Fq12Target::connect(&mut builder, &r_t, &r_expected_t);
+        println!("[5]");
+
+        Fq12Target::connect(&mut builder, &r_t, &r_expected_t);
 
         let pw = PartialWitness::<F>::new();
         let data = builder.build::<C>();
         dbg!(data.common.degree_bits());
+        println!("[6]");
         let _proof = data.prove(pw);
     }
 
