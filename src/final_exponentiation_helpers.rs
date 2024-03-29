@@ -9,10 +9,7 @@ use plonky2::{
 };
 use std::ops::Div;
 
-use crate::{
-    fields::{fq12_target::Fq12Target, fq2_target::Fq2Target},
-    utils::helpers::get_naf,
-};
+use crate::fields::{fq12_target::Fq12Target, fq2_target::Fq2Target};
 
 pub fn frobenius_map<F: RichField + Extendable<D>, const D: usize>(
     builder: &mut CircuitBuilder<F, D>,
@@ -66,7 +63,7 @@ pub fn pow_target<F: RichField + Extendable<D>, const D: usize>(
 ) -> Fq12Target<F, D> {
     let mut res = a.clone();
     let mut is_started = false;
-    let naf = get_naf(exp);
+    let naf = get_bls_naf(exp);
 
     for &z in naf.iter().rev() {
         if is_started {
@@ -85,6 +82,54 @@ pub fn pow_target<F: RichField + Extendable<D>, const D: usize>(
     }
 
     res
+}
+
+pub fn get_bls_naf(mut exp: Vec<u64>) -> Vec<i8> {
+    // https://en.wikipedia.org/wiki/Non-adjacent_form
+    // NAF for exp:
+    let mut naf: Vec<i8> = Vec::with_capacity(64 * exp.len());
+    let len = exp.len();
+
+    // generate the NAF for exp
+    for idx in 0..len {
+        let mut e: u64 = exp[idx];
+        for _ in 0..64 {
+            if e & 1 == 1 {
+                let z = 2i8 - (e % 4) as i8;
+                // Excluded since our constant in NAF form doesn't contain negative ones
+                // if z == -1 {
+                //     e += 1;
+                // }
+                naf.push(z);
+            } else {
+                naf.push(0);
+            }
+            // Moving this outside the if and else statements since we are not checking if z == -1
+            e /= 2;
+        }
+        if e != 0 {
+            println!("enters e != 0");
+            assert_eq!(e, 1);
+            let mut j = idx + 1;
+            while j < exp.len() && exp[j] == u64::MAX {
+                exp[j] = 0;
+                j += 1;
+            }
+            if j < exp.len() {
+                exp[j] += 1;
+            } else {
+                exp.push(1);
+            }
+        }
+    }
+    if exp.len() != len {
+        println!("enters exp.len() != len");
+        assert_eq!(len, exp.len() + 1);
+        assert!(exp[len] == 1);
+        naf.push(1);
+    }
+
+    naf
 }
 
 pub fn frob_coeffs(index: usize) -> Fq2 {
