@@ -39,24 +39,25 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
         .collect::<Vec<_>>();
 
     println!("[2]");
+    let mut pairs_f_storage: Vec<Fq12Target<F, D>> = Vec::new();
 
-    let pairs_f_storage = cfg_chunks_mut!(pairs, 4).map(|pairs| {
-        let mut f = Fq12Target::constant(builder, Fq12::one());
+    for pairs in cfg_chunks_mut!(pairs, 4) {
+        let mut f_to = Fq12Target::constant(builder, Fq12::one());
         for i in BitIteratorBE::without_leading_zeros([BLS_X]).skip(1) {
-            f = f.mul(builder, &f); // square in place
+            f_to = f_to.mul(builder, &f_to); // square in place
             for (p, coeffs) in pairs.iter_mut() {
-                f = ell_target(builder, &f, coeffs.next().unwrap(), p.0.clone());
+                f_to = ell_target(builder, &f_to, coeffs.next().unwrap(), p.0.clone());
             }
             if i {
                 for (p, coeffs) in pairs.iter_mut() {
-                    f = ell_target(builder, &f, coeffs.next().unwrap(), p.0.clone());
+                    f_to = ell_target(builder, &f_to, coeffs.next().unwrap(), p.0.clone());
                 }
             }
         }
-        f
-    });
+        pairs_f_storage.push(f_to)
+    }
 
-    let f = Fq12Target::test_fold(pairs_f_storage).unwrap();
+    let f = Fq12Target::multiply_elements(builder, pairs_f_storage.into_iter()).unwrap();
 
     // let f: Fq12Target<F, D> = cfg_chunks_mut!(pairs, 4)
     //     .map(|pairs| {
@@ -164,7 +165,7 @@ mod tests {
             g2::{G2AffineTarget, G2PreparedTarget},
         },
         fields::{fq12_target::Fq12Target, fq2_target::Fq2Target},
-        miller_loop::{connect_pairs, multi_miller_loop},
+        miller_loop::multi_miller_loop,
         native::miller_loop::{ell, getter_of_prepared_pairs, G1Prepared, G2Prepared},
     };
 
