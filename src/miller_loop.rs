@@ -53,7 +53,7 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
         pairs_f_storage.push(f_to)
     }
 
-    let f = Fq12Target::multiply_elements(builder, pairs_f_storage.into_iter()).unwrap();
+    let mut f = Fq12Target::multiply_elements(builder, pairs_f_storage.into_iter()).unwrap();
 
     // let f: Fq12Target<F, D> = cfg_chunks_mut!(pairs, 4)
     //     .map(|pairs| {
@@ -75,7 +75,7 @@ pub fn multi_miller_loop<F: RichField + Extendable<D>, const D: usize>(
 
     // let mut f = Fq12Target::constant(builder, Fq12::one());
     if BLS_X_IS_NEGATIVE {
-        f.conjugate(builder);
+        f = f.conjugate(builder);
     }
 
     f
