@@ -1,12 +1,13 @@
 [package]
 name = "plonky2-bls12-381-pairing"
 edition = "2021"
+version = "0.1.0"
 
 [dependencies]
-plonky2-bls12-381={ git = "https://github.com/metacraft-labs/plonky2-bn254.git" }
-plonky2_ecdsa={ git="https://github.com/InternetMaximalism/plonky2", rev="541e127" }
-plonky2_u32={ git="https://github.com/InternetMaximalism/plonky2", rev="541e127" }
-plonky2={ git="https://github.com/InternetMaximalism/plonky2", rev="541e127" }
+plonky2-bls12-381 = { git = "https://github.com/metacraft-labs/plonky2-bn254.git" }
+plonky2_ecdsa = { git = "https://github.com/InternetMaximalism/plonky2", rev = "541e127" }
+plonky2_u32 = { git = "https://github.com/InternetMaximalism/plonky2", rev = "541e127" }
+plonky2 = { git = "https://github.com/InternetMaximalism/plonky2", rev = "541e127" }
 anyhow = "1.0.71"
 ark-bls12-381 = "0.4.0"
 ark-ff = "0.4.2"
